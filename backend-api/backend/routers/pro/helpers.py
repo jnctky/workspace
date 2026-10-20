@@ -332,6 +332,8 @@ async def check_login(
     if not user._bypass_password_check and not base.verify_password(
         user.password, db_user.password
     ):
+        # 本地自托管补丁：区分「账号不存在」和「密码错误」，只记邮箱不记密码
+        logger.warning(f"Login failed, password mismatch: {db_user.email!r}")
         raise EXCEPTION_401
 
     is_developer = await is_developer_entity(db, db_user.entity_uuid)

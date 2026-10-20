@@ -143,6 +143,24 @@ def handle_share_files(
         logger.error(f"Update shared files job timed out for user: {owner_uuid}")
 
 
+def normalize_login_identifier(email: str) -> str:
+    """本地自托管补丁：登录标识容错。
+
+    - 去掉首尾空格
+    - 域名大小写统一（邮箱本地部分保留原样）
+    - 早期文档里出现过的 `@openbb.local` 保留域名，映射到真实的 `@openbb.co`
+      （pydantic EmailStr 不接受保留域名，库里也不可能有该账号）
+    """
+    value = (email or "").strip()
+    if "@" not in value:
+        return value
+    local, _, domain = value.partition("@")
+    domain = domain.strip().lower()
+    if domain == "openbb.local":
+        domain = "openbb.co"
+    return f"{local}@{domain}"
+
+
 def get_user_query(email: str):
     to_select = [
         User.uuid,
@@ -158,8 +176,9 @@ def get_user_query(email: str):
         User.totp_active,
         User.permissions_uuid,
     ]
+    email = normalize_login_identifier(email)
     target = User.email if "@" in email else User.username
-    return select(*to_select).where(target == email, User.deleted.is_(False))  # type: ignore
+    return select(*to_select).where(func.lower(target) == email.lower(), User.deleted.is_(False))  # type: ignore
 
 
 def get_user_pro_query(email: str):
@@ -198,9 +217,10 @@ def get_user_pro_query(email: str):
         .join(Entity, PermissionsEntityMap.entity_uuid == Entity.uuid, isouter=True)
         .where(User.deleted.is_(False))
     )
+    email = normalize_login_identifier(email)
     if "@" in email:
-        return query.where(User.email == email).limit(1)
-    return query.where(User.username == email).limit(1)
+        return query.where(func.lower(User.email) == email.lower()).limit(1)
+    return query.where(func.lower(User.username) == email.lower()).limit(1)
 
 
 def get_openbb_contributors() -> list[str]:

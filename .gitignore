@@ -1,1 +1,9 @@
 .DS_Store
+
+# Local install (本地安装产物，勿提交)
+.venv/
+my_tools/
+terminalpro/node_modules/
+terminalpro/dist/
+node_modules/
+dist/

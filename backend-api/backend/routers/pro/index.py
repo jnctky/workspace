@@ -371,6 +371,8 @@ async def login(  # noqa: PLR0914, PLR0915
     if not (
         result := (await db.execute(helpers.get_user_pro_query(user.email))).first()
     ):
+        # 本地自托管补丁：把失败的用户名/邮箱记进日志，便于排查登录问题（不含密码）
+        logger.warning(f"Login failed, user not found: {user.email!r}")
         raise EXCEPTION_401
 
     # If the user is not associated with an entity, means they registered on other OpenBB platforms (eg Hub)

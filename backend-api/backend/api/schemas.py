@@ -128,6 +128,12 @@ def check_password(v: str) -> str:
     if isinstance(v, bytes):
         v = v.decode("utf-8")
 
+    # 本地自托管补丁：local/test/lite 模式下只要求 6 位以上，方便本地测试账号（如 123456）
+    # 生产模式仍走下方强密码校验
+    if settings.MODE in {"local", "test", "lite"}:
+        if isinstance(v, str) and 6 <= len(v) <= 72 and not re.search(r"\s", v):
+            return v
+
     if isinstance(v, str) and not re.match(VALID_REGEX, v):
         raise ValueError(
             "Password must be at least 8 characters long, contain at least one "

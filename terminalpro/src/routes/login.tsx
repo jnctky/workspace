@@ -447,8 +447,10 @@ function useLogin(props: {
   const form = useForm({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: searchParams.get("email") || "",
-      password: "",
+      // 本地自托管补丁：预填本地 guest 账号，打开登录页直接点 Login 即可
+      // 部署到公网前请还原为 "" 和空密码
+      email: searchParams.get("email") || "guest@openbb.co",
+      password: "123456",
       remember: false,
     },
   });

@@ -24,7 +24,10 @@ export const banned_keywords = [
 ];
 const bannedKeywordsPattern = `^(?!(${banned_keywords.join("|")})\\b)`;
 const bannedKeywordsRegex = new RegExp(bannedKeywordsPattern, "i");
-const passwordRegex = /^(?=\S*[a-z])(?=\S*[A-Z])(?=\S*\d)(?=\S*[^\w\s])\S{8,}$/;
+// 本地自托管补丁：放宽为「6 位以上、不含空格」，方便本地测试账号（如 123456）。
+// 原规则（强密码）保留在注释中，部署到公网前请还原：
+// const passwordRegex = /^(?=\S*[a-z])(?=\S*[A-Z])(?=\S*\d)(?=\S*[^\w\s])\S{8,}$/;
+const passwordRegex = /^\S{6,}$/;
 const invalidPassword =
   "Password: min. 8 characters, including a number, uppercase, lowercase, and special character. Spaces are forbidden.";
 
