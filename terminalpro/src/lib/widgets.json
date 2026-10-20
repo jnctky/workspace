@@ -148,7 +148,7 @@
     "source": ["fmp", "intrinio", "fred"]
   },
   "tv_charting": {
-    "name": "Advanced Real-time Chart Widget",
+    "name": "tv_Advanced Real-time Chart Widget",
     "description": "Here's a free and powerful chart for you to easily embed onto any website. Make it yours with a ton of different customization options.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/others/technical_analysis/charting.png",
     "widgetType": "individual",
@@ -164,7 +164,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_ta": {
-    "name": "Technical Analysis Gauge",
+    "name": "tv_Technical Analysis Gauge",
     "description": "See what the technical analysis says about a given symbol with our display ratings, made for easy viewing.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_ta.png",
     "widgetType": "individual",
@@ -180,7 +180,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_market_overview": {
-    "name": "Macro Market Overview",
+    "name": "tv_Macro Market Overview",
     "description": "Built for when you need to take a macro look at the markets.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_market_overview.png",
     "widgetType": "individual",
@@ -196,7 +196,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_market_data": {
-    "name": "Global Market Performance",
+    "name": "tv_Global Market Performance",
     "description": "Grab an overview of global markets performance, including change values, Open, High, Low, and Close values for selected financial instruments.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_market_data.png",
     "widgetType": "individual",
@@ -212,7 +212,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_stock_market": {
-    "name": "Exchange Gainers and Losers",
+    "name": "tv_Exchange Gainers and Losers",
     "description": "See the top five gaining, losing, and most active stocks for the day. It updates based on current market activity - so you'll always see the most relevant stocks.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_stock_market.png",
     "widgetType": "individual",
@@ -228,7 +228,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_upcoming_economic_events": {
-    "name": "Upcoming Economic Events",
+    "name": "tv_Upcoming Economic Events",
     "description": "Keep an eye on key upcoming economic events, announcements, and news. Plus, set up filters in a few clicks, selecting for event importance and affected currencies.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_upcoming_economic_events.png",
     "widgetType": "individual",
@@ -244,7 +244,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_ticker": {
-    "name": "Ticker Performance",
+    "name": "tv_Ticker Performance",
     "description": "Grab a horizontal glance at important instrument stats.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_ticker.png",
     "widgetType": "individual",
@@ -260,7 +260,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_ticker_tape": {
-    "name": "Ticker Tape Performance",
+    "name": "tv_Ticker Tape Performance",
     "description": "Go all vintage Wall Street with our scrolling ticker tape.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_ticker_tape.png",
     "widgetType": "individual",
@@ -276,7 +276,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_single_ticker": {
-    "name": "Real-time Ticker Value",
+    "name": "tv_Real-time Ticker Value",
     "description": "See the price and change percentage of your preferred symbol. Nothing else.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_single_ticker.png",
     "widgetType": "individual",
@@ -292,7 +292,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_mini_chart": {
-    "name": "Mini Charting",
+    "name": "tv_Mini Charting",
     "description": "This little one lets you see a symbol's price and change percentages, alongside an even more stripped-back chart view.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_mini_chart.png",
     "widgetType": "individual",
@@ -308,7 +308,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_symbol_info": {
-    "name": "Symbol Info",
+    "name": "tv_Symbol Info",
     "description": "Scan key symbol info in an easy-to-read format. Company financials and quotes are also available at a glance.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_symbol_info.png",
     "widgetType": "individual",
@@ -324,7 +324,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_symbol_overview": {
-    "name": "Symbols Overview",
+    "name": "tv_Symbols Overview",
     "description": "Embed the latest quotes, plus a simple chart of a simple, single stock.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_symbol_overview.png",
     "widgetType": "individual",
@@ -340,7 +340,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_forex_cross_rates": {
-    "name": "Real-time Cross Rates",
+    "name": "tv_Real-time Cross Rates",
     "description": "Display real-time quotes of selected currencies in comparison to other major currencies.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_forex_cross_rates.png",
     "widgetType": "individual",
@@ -356,7 +356,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_forex_heatmap": {
-    "name": "Real-time Heatmap",
+    "name": "tv_Real-time Heatmap",
     "description": "Show off a snapshot of currency market action. This widget lets you spot strong and weak currencies and see how they compare to each other, all in real-time.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_forex_heatmap.png",
     "widgetType": "individual",
@@ -372,7 +372,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_forex_screener": {
-    "name": "Forex Interactive Indicators Screener",
+    "name": "tv_Forex Interactive Indicators Screener",
     "description": "Separate the wheat from the chaff with this embeddable Screener - handy for sorting symbols both by fundamental and technical indicators.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_forex_screener.png",
     "widgetType": "individual",
@@ -388,7 +388,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_crypto_screener": {
-    "name": "Crypto Interactive Indicators Screener",
+    "name": "tv_Crypto Interactive Indicators Screener",
     "description": "Separate the wheat from the chaff with this embeddable Screener - handy for sorting symbols both by fundamental and technical indicators.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_crypto_screener.png",
     "widgetType": "individual",
@@ -404,7 +404,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_cryptocurrency_market": {
-    "name": "Cryptocurrency Market",
+    "name": "tv_Cryptocurrency Market",
     "description": "This widget displays crypto assets and then sorts them by their market capitalization.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_cryptocurrency_market.png",
     "widgetType": "individual",
@@ -420,7 +420,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_fundamental_data": {
-    "name": "Fundamental Data",
+    "name": "tv_Fundamental Data",
     "description": "Kick the tires on the fundamentals with this deep dive into how a company is doing beyond simply its stock price.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_fundamental_data.png",
     "widgetType": "individual",
@@ -436,7 +436,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_company_profile": {
-    "name": "Company Profile",
+    "name": "tv_Company Profile",
     "description": "Company description along with key categories - sector & industry.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_company_profile.png",
     "widgetType": "individual",
@@ -452,7 +452,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_market_timeline": {
-    "name": "Market Timeline",
+    "name": "tv_Market Timeline",
     "description": "Help your audience keep track of what's happening in your market of interest - designed to be read in 20 seconds or less.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_market_timeline.png",
     "widgetType": "individual",
@@ -468,7 +468,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_timeline": {
-    "name": "Company Timeline",
+    "name": "tv_Company Timeline",
     "description": "Help your audience keep track of what's happening in a particular company - designed to be read in 20 seconds or less.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_timeline.png",
     "widgetType": "individual",
@@ -484,7 +484,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_stock_heatmap": {
-    "name": "Stock Heatmap",
+    "name": "tv_Stock Heatmap",
     "description": "This widget shows off a macro view on global stocks. Perfect for segmenting by sector, country or market cap.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_stock_heatmap.png",
     "widgetType": "individual",
@@ -500,7 +500,7 @@
     "disableRetrievalForCopilot": true
   },
   "tv_crypto_coins_heatmap": {
-    "name": "Crypto Coins Heatmap",
+    "name": "tv_Crypto Coins Heatmap",
     "description": "This widget gives you a birds-eye view of crypto. Segment by type of coin, market cap, recent performance and more.",
     "imgUrl": "https://raw.githubusercontent.com/OpenBB-finance/widgets-library/main/id/tv_crypto_coins_heatmap.png",
     "widgetType": "individual",
