@@ -40,6 +40,7 @@ import {
   type ManageNavigationBarInputArgumentsT,
 } from "~/lib/utils/ai";
 import { createCustomTemplateTab } from "~/lib/utils/createTemplates";
+import { isCopilotRetrievalDisabled } from "~/lib/utils/widget";
 import {
   deserializeDashboardTabId,
   getDashboardInfo,
@@ -428,7 +429,7 @@ function isAvailableWidget(widget: WidgetT): boolean {
       widgetId !== "navigation_bar" &&
       !GENERATIVE_ONLY_WIDGET_IDS.has(widgetId) &&
       !UNSUPPORTED_MCP_CREATE_WIDGET_IDS.has(widgetId) &&
-      widget.disableRetrievalForCopilot !== true &&
+      !isCopilotRetrievalDisabled(widget) &&
       !(BLOCKED_WIDGET_IDS.has(widgetId) && !isExternal),
   );
 }

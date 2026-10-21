@@ -49,6 +49,30 @@ export function getJsonWidget(widget: WidgetId | Partial<Widget>): WidgetT | nul
   return cloneDeep({ ...(WIDGETS[widgetId] ?? widget), id, widgetId } as WidgetT);
 }
 
+/**
+ * Whether the Copilot is forbidden from retrieving this widget's data.
+ *
+ * The packaged widget definition (widgets.json) is the source of truth:
+ * dashboard instances persist a snapshot of the definition from the time they
+ * were added, so an instance-level flag alone would never pick up definition
+ * changes (e.g. re-enabling retrieval for `tv_charting`). Prefer the packaged
+ * definition's flag when it declares one; fall back to the instance value
+ * (custom/external widgets that don't exist in WIDGETS).
+ */
+export function isCopilotRetrievalDisabled(
+  widget: Partial<WidgetT> | null | undefined,
+): boolean {
+  if (!widget) return false;
+  const definition = widget.widgetId
+    ? (WIDGETS[widget.widgetId as keyof typeof WIDGETS] as
+        | { disableRetrievalForCopilot?: boolean }
+        | undefined)
+    : undefined;
+  const flag =
+    definition?.disableRetrievalForCopilot ?? widget.disableRetrievalForCopilot;
+  return flag === true;
+}
+
 export function getSupportedAssetClasses(widgetId: WidgetsIds | string): string[] {
   return cloneDeep(WIDGETS[widgetId]?.supportedAssetClasses ?? []);
 }

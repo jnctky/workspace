@@ -26,6 +26,7 @@ import { useAppStore, useShallowAppStore } from "~/lib/state/app";
 import { useShallowCopilotStore } from "~/lib/state/copilot";
 import { useShallowCopilotDataStore } from "~/lib/state/copilotData";
 import { useShallowThemeStore } from "~/lib/state/theme";
+import { isCopilotRetrievalDisabled } from "~/lib/utils/widget";
 import {
   cn,
   dispatchRunParams,
@@ -293,14 +294,17 @@ export function RefreshButton(props: {
 }
 export function CopilotButton({ aiEnabled }: { aiEnabled?: boolean }) {
   const isMobile = useIsMobile();
-  const { widgetRef, isPreview } = useWidgetContext();
+  const { widgetRef, isPreview, widgetFromJSON } = useWidgetContext();
 
   const widgetDashboardSelectFF = useShallowCopilotStore((s) =>
     Boolean(s.selectedCopilot?.features?.["widget-dashboard-select"]),
   );
 
-  // Get disableRetrievalForCopilot from the widget
-  const disableRetrievalForCopilot = widgetRef?.current?.disableRetrievalForCopilot;
+  // Get disableRetrievalForCopilot from the packaged definition (source of
+  // truth), falling back to the persisted instance snapshot.
+  const disableRetrievalForCopilot = isCopilotRetrievalDisabled(
+    widgetFromJSON ?? widgetRef?.current,
+  );
   const disabled = !aiEnabled || disableRetrievalForCopilot || isPreview;
 
   // Update contextEnabled to also check for disableRetrievalForCopilot

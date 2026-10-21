@@ -161,7 +161,7 @@
       "h": 16
     },
     "source": ["tradingview"],
-    "disableRetrievalForCopilot": true
+    "disableRetrievalForCopilot": false
   },
   "tv_ta": {
     "name": "tv_Technical Analysis Gauge",

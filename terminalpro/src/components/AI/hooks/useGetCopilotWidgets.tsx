@@ -23,6 +23,7 @@ import {
   getWidgetDataSource,
   getWidgetInfo,
 } from "~/lib/utils";
+import { isCopilotRetrievalDisabled } from "~/lib/utils/widget";
 import { type DashboardInfoT, getDashboardInfo } from "~/lib/utils/workspaceDashboard";
 import type { WorkspaceStateT } from "./useAiFetchRequestInit";
 import { useShallowAppWidgetsStore } from "./useGetAppWidgets";
@@ -310,7 +311,7 @@ export function useGetCopilotWidgets() {
       }
 
       if (
-        w?.disableRetrievalForCopilot ||
+        isCopilotRetrievalDisabled(w) ||
         !(w?.widgetId || w?.id) ||
         (BLOCKED_WIDGET_IDS.has(w.widgetId) && !w.external) ||
         w?.widgetId === "navigation_bar"

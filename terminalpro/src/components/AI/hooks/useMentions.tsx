@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { BLOCKED_WIDGET_IDS } from "~/lib/constants";
 import { type InnerTab, type Item, useShallowAppStore } from "~/lib/state/app";
+import { isCopilotRetrievalDisabled } from "~/lib/utils/widget";
 import {
   type CopilotWidget,
   type Mention,
@@ -85,7 +86,7 @@ function getCurrentDashboardTabOptions(currentDashboard: Item | null) {
     const tabDashboardWidgets = allDashboardWidgets.filter(
       (w) =>
         w.innerTab === innerTabId &&
-        !w?.disableRetrievalForCopilot &&
+        !isCopilotRetrievalDisabled(w) &&
         w.widgetId !== "navigation_bar" &&
         !(BLOCKED_WIDGET_IDS.has(w.widgetId) && !w.external),
     );
