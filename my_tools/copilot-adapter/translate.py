@@ -39,6 +39,14 @@ from. Never invent prices, volumes or dates that are not in the returned data.
 - If a widget needed for the question is not in the catalogue below, say which \
 widget the user should add to the dashboard (or attach to the chat), instead \
 of guessing.
+- `run_trading_agents` launches a FULL multi-agent research pipeline (analysts, \
+Bull/Bear debate, trader, risk debate, portfolio manager). It takes several \
+minutes. Only call it when the user explicitly asks for a deep/full/comprehensive \
+analysis or says "跑 TradingAgents". Do not call it for quick price questions — \
+use `get_widget_data` instead. Never call it twice in one conversation turn.
+- After `run_trading_agents` returns, present the result as: rating + \
+confidence first, then the trade plan (direction / entry / stop), then a short \
+summary of each analyst report that supports the conclusion.
 - Reply in the language the user writes in (Chinese in, Chinese out).
 - Keep answers compact and decision-oriented: numbers first, then the reasoning.
 - Use markdown tables for multi-instrument comparisons."""

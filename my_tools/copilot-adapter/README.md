@@ -87,6 +87,13 @@ http://127.0.0.1:7777）。启动后必须做一步切换：打开 Copilot 面�
   可折叠的 “Step-by-step reasoning”，正文只留答案
 - 读取仪表盘 widget 数据作为上下文：用户 @ 提及 / 点 AI 按钮选中的 widget
   全文注入，其余 dashboard widget 摘要注入（有字符预算防爆炸）
+- **TradingAgents 深度分析（服务端工具）**：模型识别到“完整/深度分析”类
+  请求时调用 `run_trading_agents`，适配层子进程跑完整条多智能体流水线
+  （数据走本地 OpenBB），过程以状态消息流式展示，最终评级/交易计划回给
+  模型组织答案。开关：
+  - `.env` 的 `TA_RUNNER_ENABLED`（默认 true，重启生效）
+  - 运行时热切换：`GET/POST http://127.0.0.1:7777/v1/ta/enabled`
+    `{"enabled": false}` 关闭后该工具不再暴露，其余功能不受影响
 - 模型切换：`models` 清单暴露给 UI 下拉，选中项直接传给上游
 - 错误友好提示：401/404/429/超时/断连都会以系统消息形式显示在对话里
 

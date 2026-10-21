@@ -13,9 +13,11 @@ Run:  python -m uvicorn main:app --host 127.0.0.1 --port 7777
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+from datetime import date
 from typing import Any, AsyncIterator
 
 import httpx
@@ -150,6 +152,43 @@ GET_WIDGET_DATA_TOOL: dict[str, Any] = {
 }
 
 
+RUN_TRADING_AGENTS_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "run_trading_agents",
+        "description": (
+            "Run the full TradingAgents multi-agent pipeline (4 analysts, "
+            "Bull/Bear debate, trader, risk debate, portfolio manager) for one "
+            "ticker and trade date, and return the final trade decision with "
+            "rating. Takes several minutes and many LLM calls — only run it "
+            "when the user explicitly asks for a deep/full analysis."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Ticker symbol, e.g. AAPL.",
+                },
+                "trade_date": {
+                    "type": "string",
+                    "description": "Analysis date in YYYY-MM-DD. Defaults to today.",
+                },
+                "analysts": {
+                    "type": "string",
+                    "description": (
+                        "Comma-separated analyst subset. Valid keys: market,"
+                        "social,news,fundamentals. Pass an empty string to "
+                        "use all four (recommended)."
+                    ),
+                },
+            },
+            "required": ["ticker"],
+        },
+    },
+}
+
+
 def _humanize_upstream_error(status: int, body: str) -> str:
     snippet = (body or "").strip()
     if len(snippet) > 600:
@@ -162,6 +201,29 @@ def _humanize_upstream_error(status: int, body: str) -> str:
     }
     hint = hints.get(status, "上游返回错误")
     return f"{hint}。HTTP {status}: {snippet}"
+
+
+# Runtime switch for the TradingAgents tool. Defaults to TA_RUNNER_ENABLED in
+# .env; can be flipped live via GET/POST /v1/ta/enabled without a restart.
+ta_enabled_runtime: bool = settings.ta_enabled
+
+
+@app.get("/v1/ta/enabled")
+async def ta_enabled_get() -> JSONResponse:
+    return JSONResponse({"enabled": ta_enabled_runtime})
+
+
+@app.post("/v1/ta/enabled")
+async def ta_enabled_post(request: Request) -> JSONResponse:
+    """Toggle the run_trading_agents tool at runtime: {"enabled": true|false}."""
+    global ta_enabled_runtime
+    try:
+        body = await request.json()
+        ta_enabled_runtime = bool(body.get("enabled"))
+    except Exception:
+        return JSONResponse({"detail": "expected JSON body {\"enabled\": bool}"}, status_code=400)
+    log.info("TA tool switched %s", "ON" if ta_enabled_runtime else "OFF")
+    return JSONResponse({"enabled": ta_enabled_runtime})
 
 
 # --------------------------------------------------------------------------- #
@@ -237,6 +299,143 @@ async def list_models() -> JSONResponse:
 
 # --------------------------------------------------------------------------- #
 # Chat stream
+# --------------------------------------------------------------------------- #
+# TradingAgents deep-analysis tool (executed server-side via subprocess)
+# --------------------------------------------------------------------------- #
+async def run_trading_agents_events(
+    arguments: dict[str, Any],
+) -> AsyncIterator[tuple[str, Any]]:
+    """Run the TradingAgents pipeline as a subprocess and stream progress.
+
+    Yields ("status", text) events as the pipeline advances, then a final
+    ("result", payload) whose "content" is the JSON handed back to the model
+    as the tool result.
+    """
+    ticker = str(arguments.get("ticker") or "").strip().upper()
+    if not ticker:
+        yield "result", {"ok": False, "error": "ticker is required"}
+        return
+    trade_date = (
+        str(arguments.get("trade_date") or "").strip()
+        or date.today().strftime("%Y-%m-%d")
+    )
+    analysts = (
+        str(arguments.get("analysts") or "").strip()
+        or "market,social,news,fundamentals"
+    )
+
+    cmd = [
+        settings.ta_python,
+        settings.ta_script,
+        "--ticker", ticker,
+        "--date", trade_date,
+        "--analysts", analysts,
+    ]
+    log.info("TA run start: %s", " ".join(cmd))
+    yield "status", (
+        f"开始 TradingAgents 深度分析：{ticker} @ {trade_date}"
+        f"（分析师：{analysts}）。整条流水线需要几分钟，请稍候。"
+    )
+
+    reports: dict[str, str] = {}
+    decision: dict[str, Any] | None = None
+    error: str | None = None
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + settings.ta_timeout
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=os.path.dirname(settings.ta_script) or ".",
+        )
+    except OSError as exc:
+        yield "result", {"ok": False, "error": f"无法启动 TA runner：{exc}"}
+        return
+
+    async def _drain_stderr() -> None:
+        while True:
+            line = await proc.stderr.readline()
+            if not line:
+                return
+            text = line.decode("utf-8", "replace").strip()
+            if text:
+                log.debug("TA stderr: %s", text[:300])
+
+    stderr_task = asyncio.create_task(_drain_stderr())
+
+    while True:
+        if loop.time() > deadline:
+            error = f"TA run timed out after {int(settings.ta_timeout)}s"
+            proc.kill()
+            break
+        try:
+            line = await asyncio.wait_for(
+                proc.stdout.readline(), timeout=max(deadline - loop.time(), 1.0)
+            )
+        except TimeoutError:
+            error = f"TA run timed out after {int(settings.ta_timeout)}s"
+            proc.kill()
+            break
+        if not line:
+            break
+        text = line.decode("utf-8", "replace").strip()
+        if not text:
+            continue
+        try:
+            event = json.loads(text)
+        except json.JSONDecodeError:
+            log.debug("TA non-json line: %s", text[:200])
+            continue
+
+        etype = event.get("type")
+        if etype == "stage":
+            yield "status", str(event.get("label") or event.get("stage") or "")
+        elif etype == "message":
+            label = event.get("label") or event.get("sender") or "agent"
+            body_text = str(event.get("text") or "").strip()
+            if body_text:
+                snippet = body_text[: settings.ta_message_max_chars]
+                yield "status", f"[{label}] {snippet}"
+        elif etype == "report":
+            reports[str(event.get("key") or "report")] = str(event.get("text") or "")
+        elif etype == "decision":
+            decision = {
+                "rating": event.get("rating"),
+                "text": str(event.get("text") or ""),
+            }
+        elif etype == "error":
+            error = str(event.get("message") or "unknown TA error")
+        elif etype == "done":
+            break
+
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=15)
+    except TimeoutError:
+        proc.kill()
+    stderr_task.cancel()
+
+    if error or not decision:
+        log.error("TA run failed: %s", error or "no decision")
+        yield "result", {"ok": False, "error": error or "TA run produced no decision"}
+        return
+
+    log.info("TA run done: ticker=%s rating=%s", ticker, decision.get("rating"))
+    summary: dict[str, Any] = {
+        "ticker": ticker,
+        "trade_date": trade_date,
+        "rating": decision.get("rating"),
+        "final_trade_decision": decision["text"],
+    }
+    # Give the model the two plan reports it needs to explain the reasoning;
+    # cap each so one tool result cannot blow the context budget.
+    for key in ("investment_plan", "trader_investment_plan"):
+        if reports.get(key):
+            summary[key] = reports[key][:4000]
+    yield "result", {"ok": True, "content": json.dumps(summary, ensure_ascii=False)}
+
+
 # --------------------------------------------------------------------------- #
 @app.post("/v1/query")
 async def query(request: Request) -> Response:
@@ -314,147 +513,171 @@ async def query(request: Request) -> Response:
         if 0 < settings.top_p < 1:
             body["top_p"] = settings.top_p
 
-        # Offer the widget-data tool whenever the user has widgets in context and
-        # we are not stuck in a tool-call loop.
-        use_tools = bool(sources) and tool_rounds < settings.max_tool_rounds
-        if use_tools:
-            body["tools"] = [GET_WIDGET_DATA_TOOL]
-            body["tool_choice"] = "auto"
-
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
             "Accept": "text/event-stream",
         }
 
+        # Server-side tool loop: get_widget_data round trips go back through
+        # Workspace (frontend executes them), while run_trading_agents is
+        # executed right here and the conversation continues with its result.
+        ta_calls_made = 0
+        extra_messages: list[dict[str, Any]] = []
+        max_turns = 1 + settings.ta_max_calls + 1
+
         try:
-            async with _http_client() as client:
-                async with client.stream("POST", url, json=body, headers=headers) as resp:
-                    if resp.status_code >= 400:
-                        raw = (await resp.aread()).decode("utf-8", "replace")
-                        log.error("upstream %s: %s", resp.status_code, raw[:400])
-                        yield _status(
-                            _humanize_upstream_error(resp.status_code, raw), "ERROR"
-                        )
-                        yield _done()
-                        return
+            for turn in range(max_turns):
+                body["messages"] = messages + extra_messages
 
-                    # Reasoning models (MiniMax M-series) inline their chain of
-                    # thought as <think>…</think> in the content stream. Peel it
-                    # out so the chat shows a collapsible reasoning section
-                    # instead of raw tags.
-                    splitter = (
-                        ReasoningSplitter()
-                        if settings.reasoning_mode != "inline"
-                        else None
-                    )
-                    reason_buf = ""
-                    # OpenAI-style streamed tool calls arrive as fragments that
-                    # must be concatenated by index before we can parse the JSON.
-                    pending_calls: dict[int, dict[str, str]] = {}
+                # Offer get_widget_data when widgets are in context (and we are
+                # not stuck in a tool-call loop); offer the TradingAgents tool
+                # until its per-turn budget is spent.
+                tools: list[dict[str, Any]] = []
+                if bool(sources) and tool_rounds < settings.max_tool_rounds:
+                    tools.append(GET_WIDGET_DATA_TOOL)
+                if ta_enabled_runtime and ta_calls_made < settings.ta_max_calls:
+                    tools.append(RUN_TRADING_AGENTS_TOOL)
+                if tools:
+                    body["tools"] = tools
+                    body["tool_choice"] = "auto"
+                else:
+                    body.pop("tools", None)
+                    body.pop("tool_choice", None)
 
-                    def take_reasoning(force: bool = False) -> list[str]:
-                        nonlocal reason_buf
-                        if settings.reasoning_mode == "hide":
-                            reason_buf = ""
-                            return []
-                        if not reason_buf:
-                            return []
-                        if (
-                            not force
-                            and len(reason_buf) < settings.reasoning_chunk_chars
-                            and "\n" not in reason_buf
-                        ):
-                            return []
-                        text = reason_buf.strip()
-                        reason_buf = ""
-                        return [_status(text)] if text else []
-
-                    async for line in resp.aiter_lines():
-                        if not line or not line.startswith("data:"):
-                            continue
-                        chunk = line[5:].strip()
-                        if not chunk:
-                            continue
-                        if chunk == "[DONE]":
-                            break
-                        try:
-                            obj = json.loads(chunk)
-                        except json.JSONDecodeError:
-                            continue  # keep-alive or vendor-specific frame
-
-                        choices = obj.get("choices") or []
-                        if not choices:
-                            continue
-                        delta = choices[0].get("delta") or {}
-
-                        for call in delta.get("tool_calls") or []:
-                            index = int(call.get("index", 0) or 0)
-                            slot = pending_calls.setdefault(
-                                index, {"name": "", "arguments": "", "id": ""}
-                            )
-                            if call.get("id"):
-                                slot["id"] = call["id"]
-                            function = call.get("function") or {}
-                            if function.get("name"):
-                                slot["name"] = function["name"]
-                            if function.get("arguments"):
-                                slot["arguments"] += function["arguments"]
-
-                        # Some vendors (MiniMax with reasoning_split, DeepSeek)
-                        # send the chain of thought in a separate field.
-                        explicit_reasoning = delta.get("reasoning_content") or delta.get(
-                            "reasoning"
-                        )
-                        if explicit_reasoning:
-                            reason_buf += explicit_reasoning
-                            for frame in take_reasoning():
-                                yield frame
-
-                        text = delta.get("content")
-                        if text:
-                            if splitter is None:
-                                yield _sse("copilotMessageChunk", {"delta": text})
-                            else:
-                                for kind, piece in splitter.feed(text):
-                                    if kind == "answer":
-                                        # Answer started: push out any reasoning
-                                        # still buffered so the transcript keeps
-                                        # its ordering (thinking, then answer).
-                                        for frame in take_reasoning(force=True):
-                                            yield frame
-                                        yield _sse(
-                                            "copilotMessageChunk", {"delta": piece}
-                                        )
-                                    else:
-                                        reason_buf += piece
-                                        for frame in take_reasoning():
-                                            yield frame
-
-                        finish = choices[0].get("finish_reason")
-                        if finish == "length":
+                async with _http_client() as client:
+                    async with client.stream("POST", url, json=body, headers=headers) as resp:
+                        if resp.status_code >= 400:
+                            raw = (await resp.aread()).decode("utf-8", "replace")
+                            log.error("upstream %s: %s", resp.status_code, raw[:400])
                             yield _status(
-                                "输出达到 max_tokens 上限被截断，可在 .env 调大 "
-                                "OPENAI_MAX_TOKENS。",
-                                "WARNING",
+                                _humanize_upstream_error(resp.status_code, raw), "ERROR"
                             )
+                            yield _done()
+                            return
 
-                    # Flush anything the splitter held back (partial tag tail or
-                    # an unclosed reasoning block).
-                    if splitter is not None:
-                        tail = splitter.flush()
-                        answer_tail = "".join(p for k, p in tail if k == "answer")
-                        reason_buf += "".join(p for k, p in tail if k == "think")
-                    else:
-                        answer_tail = ""
-                    for frame in take_reasoning(force=True):
-                        yield frame
-                    if answer_tail:
-                        yield _sse("copilotMessageChunk", {"delta": answer_tail})
+                        # Reasoning models (MiniMax M-series) inline their chain of
+                        # thought as <think>…</think> in the content stream. Peel it
+                        # out so the chat shows a collapsible reasoning section
+                        # instead of raw tags. Fresh state per upstream turn.
+                        splitter = (
+                            ReasoningSplitter()
+                            if settings.reasoning_mode != "inline"
+                            else None
+                        )
+                        reason_buf = ""
+                        # OpenAI-style streamed tool calls arrive as fragments that
+                        # must be concatenated by index before we can parse the JSON.
+                        pending_calls: dict[int, dict[str, str]] = {}
 
-                    # A tool call ends this turn. Workspace executes it against
-                    # the live dashboard and POSTs the data back to /v1/query.
-                    if pending_calls:
+                        def take_reasoning(force: bool = False) -> list[str]:
+                            nonlocal reason_buf
+                            if settings.reasoning_mode == "hide":
+                                reason_buf = ""
+                                return []
+                            if not reason_buf:
+                                return []
+                            if (
+                                not force
+                                and len(reason_buf) < settings.reasoning_chunk_chars
+                                and "\n" not in reason_buf
+                            ):
+                                return []
+                            text = reason_buf.strip()
+                            reason_buf = ""
+                            return [_status(text)] if text else []
+
+                        async for line in resp.aiter_lines():
+                            if not line or not line.startswith("data:"):
+                                continue
+                            chunk = line[5:].strip()
+                            if not chunk:
+                                continue
+                            if chunk == "[DONE]":
+                                break
+                            try:
+                                obj = json.loads(chunk)
+                            except json.JSONDecodeError:
+                                continue  # keep-alive or vendor-specific frame
+
+                            choices = obj.get("choices") or []
+                            if not choices:
+                                continue
+                            delta = choices[0].get("delta") or {}
+
+                            for call in delta.get("tool_calls") or []:
+                                index = int(call.get("index", 0) or 0)
+                                slot = pending_calls.setdefault(
+                                    index, {"name": "", "arguments": "", "id": ""}
+                                )
+                                if call.get("id"):
+                                    slot["id"] = call["id"]
+                                function = call.get("function") or {}
+                                if function.get("name"):
+                                    slot["name"] = function["name"]
+                                if function.get("arguments"):
+                                    slot["arguments"] += function["arguments"]
+
+                            # Some vendors (MiniMax with reasoning_split, DeepSeek)
+                            # send the chain of thought in a separate field.
+                            explicit_reasoning = delta.get("reasoning_content") or delta.get(
+                                "reasoning"
+                            )
+                            if explicit_reasoning:
+                                reason_buf += explicit_reasoning
+                                for frame in take_reasoning():
+                                    yield frame
+
+                            text = delta.get("content")
+                            if text:
+                                if splitter is None:
+                                    yield _sse("copilotMessageChunk", {"delta": text})
+                                else:
+                                    for kind, piece in splitter.feed(text):
+                                        if kind == "answer":
+                                            # Answer started: push out any reasoning
+                                            # still buffered so the transcript keeps
+                                            # its ordering (thinking, then answer).
+                                            for frame in take_reasoning(force=True):
+                                                yield frame
+                                            yield _sse(
+                                                "copilotMessageChunk", {"delta": piece}
+                                            )
+                                        else:
+                                            reason_buf += piece
+                                            for frame in take_reasoning():
+                                                yield frame
+
+                            finish = choices[0].get("finish_reason")
+                            if finish == "length":
+                                yield _status(
+                                    "输出达到 max_tokens 上限被截断，可在 .env 调大 "
+                                    "OPENAI_MAX_TOKENS。",
+                                    "WARNING",
+                                )
+
+                        # Flush anything the splitter held back (partial tag tail or
+                        # an unclosed reasoning block).
+                        if splitter is not None:
+                            tail = splitter.flush()
+                            answer_tail = "".join(p for k, p in tail if k == "answer")
+                            reason_buf += "".join(p for k, p in tail if k == "think")
+                        else:
+                            answer_tail = ""
+                        for frame in take_reasoning(force=True):
+                            yield frame
+                        if answer_tail:
+                            yield _sse("copilotMessageChunk", {"delta": answer_tail})
+
+                        if not pending_calls:
+                            # Plain answer finished this request.
+                            yield _done()
+                            return
+
+                        # A tool call ends the upstream turn. get_widget_data is
+                        # delegated to Workspace (frontend executes it and POSTs
+                        # the data back as a tool message); run_trading_agents is
+                        # executed right here and the loop continues.
                         call = pending_calls[min(pending_calls)]
                         name = call["name"] or "get_widget_data"
                         try:
@@ -467,34 +690,96 @@ async def query(request: Request) -> Response:
                                 "模型返回的工具参数不是合法 JSON，本次调用已跳过。",
                                 "WARNING",
                             )
-                        if name != "get_widget_data":
-                            log.warning("unsupported tool requested: %s", name)
-                            yield _status(f"模型请求了不支持的工具 {name}，已忽略。", "WARNING")
-                        elif arguments:
-                            arguments = normalize_get_widget_args(arguments, sources)
-                            log.info(
-                                "function call: %s args=%s",
-                                name,
-                                json.dumps(arguments, ensure_ascii=False)[:400],
-                            )
-                            yield _sse(
-                                "copilotFunctionCall",
-                                {
-                                    "function": name,
-                                    "input_arguments": arguments,
-                                    # Workspace drops widget tool results when
-                                    # extra_state is empty (it assumes the
-                                    # built-in copilot reads data from its own
-                                    # store). A non-empty marker keeps the data
-                                    # in the follow-up payload.
-                                    "extra_state": {
-                                        "adapter": "openai-compatible-copilot",
-                                        "requested_widgets": len(
-                                            arguments.get("data_sources") or []
-                                        ),
+
+                        if name == "get_widget_data":
+                            if arguments:
+                                arguments = normalize_get_widget_args(arguments, sources)
+                                log.info(
+                                    "function call: %s args=%s",
+                                    name,
+                                    json.dumps(arguments, ensure_ascii=False)[:400],
+                                )
+                                yield _sse(
+                                    "copilotFunctionCall",
+                                    {
+                                        "function": name,
+                                        "input_arguments": arguments,
+                                        # Workspace drops widget tool results when
+                                        # extra_state is empty (it assumes the
+                                        # built-in copilot reads data from its own
+                                        # store). A non-empty marker keeps the data
+                                        # in the follow-up payload.
+                                        "extra_state": {
+                                            "adapter": "openai-compatible-copilot",
+                                            "requested_widgets": len(
+                                                arguments.get("data_sources") or []
+                                            ),
+                                        },
                                     },
-                                },
+                                )
+                            yield _done()
+                            return
+
+                        if name == "run_trading_agents" and ta_enabled_runtime and ta_calls_made < settings.ta_max_calls:
+                            ta_calls_made += 1
+                            if not arguments:
+                                tool_content = json.dumps(
+                                    {"ok": False, "error": "missing arguments"},
+                                    ensure_ascii=False,
+                                )
+                            else:
+                                log.info(
+                                    "function call: %s args=%s",
+                                    name,
+                                    json.dumps(arguments, ensure_ascii=False)[:400],
+                                )
+                                result: dict[str, Any] = {}
+                                async for kind, item in run_trading_agents_events(arguments):
+                                    if kind == "status":
+                                        yield _status(str(item))
+                                    else:
+                                        result = item
+                                if result.get("ok"):
+                                    tool_content = result["content"]
+                                else:
+                                    yield _status(
+                                        f"TradingAgents 分析失败：{result.get('error', 'unknown')}",
+                                        "ERROR",
+                                    )
+                                    yield _done()
+                                    return
+                            # Append the assistant tool-call + tool result so the
+                            # next upstream turn can use it as context.
+                            call_id = call["id"] or f"ta_{turn}"
+                            extra_messages.append(
+                                {
+                                    "role": "assistant",
+                                    "content": None,
+                                    "tool_calls": [
+                                        {
+                                            "id": call_id,
+                                            "type": "function",
+                                            "function": {
+                                                "name": name,
+                                                "arguments": json.dumps(
+                                                    arguments, ensure_ascii=False
+                                                ),
+                                            },
+                                        }
+                                    ],
+                                }
                             )
+                            extra_messages.append(
+                                {
+                                    "role": "tool",
+                                    "tool_call_id": call_id,
+                                    "content": tool_content,
+                                }
+                            )
+                            continue  # next upstream turn with the TA result
+
+                        log.warning("unsupported tool requested: %s", name)
+                        yield _status(f"模型请求了不支持的工具 {name}，已忽略。", "WARNING")
                         yield _done()
                         return
 

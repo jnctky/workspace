@@ -83,6 +83,20 @@ class Settings:
     # tool is withdrawn (guards against call loops).
     max_tool_rounds: int = _env_int("MAX_TOOL_ROUNDS", 3)
 
+    # --- TradingAgents deep-analysis tool (server-side executed) ---
+    # The adapter runs the TradingAgents pipeline as a subprocess and streams
+    # its progress into the chat as status updates.
+    ta_enabled: bool = _env_bool("TA_RUNNER_ENABLED", True)
+    ta_python: str = _env(
+        "TA_RUNNER_PYTHON", r"D:\work\trade\TradingAgents\.venv\Scripts\python.exe"
+    )
+    ta_script: str = _env(
+        "TA_RUNNER_SCRIPT", r"D:\work\trade\TradingAgents\my_tools\ta_runner.py"
+    )
+    ta_timeout: float = _env_float("TA_RUNNER_TIMEOUT", 1800.0)
+    ta_max_calls: int = _env_int("TA_MAX_CALLS_PER_TURN", 1)
+    ta_message_max_chars: int = _env_int("TA_MESSAGE_MAX_CHARS", 600)
+
     # --- identity shown in Workspace ---
     agent_id: str = _env("AGENT_ID", "openai-compatible-copilot")
     agent_name: str = _env("AGENT_NAME", "MiniMax Copilot")
