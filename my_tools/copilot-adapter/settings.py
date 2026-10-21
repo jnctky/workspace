@@ -78,6 +78,11 @@ class Settings:
     reasoning_mode: str = _env("REASONING_MODE", "status").lower()
     reasoning_chunk_chars: int = _env_int("REASONING_CHUNK_CHARS", 320)
 
+    # --- widget data tool ---
+    # How many get_widget_data round trips are allowed per question before the
+    # tool is withdrawn (guards against call loops).
+    max_tool_rounds: int = _env_int("MAX_TOOL_ROUNDS", 3)
+
     # --- identity shown in Workspace ---
     agent_id: str = _env("AGENT_ID", "openai-compatible-copilot")
     agent_name: str = _env("AGENT_NAME", "MiniMax Copilot")

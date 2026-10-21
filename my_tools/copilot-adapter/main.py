@@ -24,7 +24,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from settings import settings
-from translate import build_messages
+from translate import (
+    build_messages,
+    normalize_get_widget_args,
+    tool_call_count,
+    widget_sources,
+)
 from reasoning import ReasoningSplitter
 
 logging.basicConfig(
@@ -90,6 +95,59 @@ def _http_client() -> httpx.AsyncClient:
     else:
         kwargs["trust_env"] = False
     return httpx.AsyncClient(**kwargs)
+
+
+# --------------------------------------------------------------------------- #
+# Widget data tool (mirrors the function Workspace itself understands)
+# --------------------------------------------------------------------------- #
+# Workspace never sends widget VALUES to the agent: it sends metadata only and
+# expects the agent to ask for the data with this function call. The frontend
+# then resolves origin/id against the live dashboard, fetches the rows and POSTs
+# them back to this same /v1/query endpoint as a `tool` message.
+GET_WIDGET_DATA_TOOL: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "get_widget_data",
+        "description": (
+            "Fetch the current data of one or more dashboard widgets. Use this "
+            "before answering any question about widget values, prices, tables "
+            "or charts. Pass the exact origin and id shown in the widget "
+            "catalogue, plus widget_uuid when available."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "data_sources": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "widget_uuid": {
+                                "type": "string",
+                                "description": "Widget instance uuid on the dashboard.",
+                            },
+                            "origin": {
+                                "type": "string",
+                                "description": "Widget origin, e.g. 'OpenBB Platform (local 6900)'.",
+                            },
+                            "id": {
+                                "type": "string",
+                                "description": "Widget id, e.g. 'equity_price_historical'.",
+                            },
+                            "input_args": {
+                                "type": "object",
+                                "description": "Widget parameters (symbol, interval, ...).",
+                            },
+                        },
+                        "required": ["origin", "id"],
+                    },
+                }
+            },
+            "required": ["data_sources"],
+        },
+    },
+}
 
 
 def _humanize_upstream_error(status: int, body: str) -> str:
@@ -187,6 +245,18 @@ async def query(request: Request) -> Response:
     except Exception:
         return JSONResponse({"detail": "invalid JSON body"}, status_code=400)
 
+    # Debug aid: DUMP_PAYLOAD=1 writes the raw Workspace payload (keys scrubbed)
+    # to payload_sample.json next to this file, for protocol inspection.
+    if os.getenv("DUMP_PAYLOAD") == "1":
+        try:
+            safe = json.loads(json.dumps(payload, default=str))
+            safe.pop("api_keys", None)
+            dump_path = os.path.join(os.path.dirname(__file__), "payload_sample.json")
+            with open(dump_path, "w", encoding="utf-8") as handle:
+                json.dump(safe, handle, ensure_ascii=False, indent=2)
+        except Exception:
+            log.exception("payload dump failed")
+
     url, api_key, default_model = _resolve_upstream(request)
     model = (
         request.headers.get("x-upstream-model")
@@ -201,13 +271,25 @@ async def query(request: Request) -> Response:
 
     trace_id = request.headers.get("x-trace-id", "")
 
+    sources = widget_sources(payload)
+    tool_rounds = tool_call_count(payload)
+
+    widgets = payload.get("widgets") or {}
     log.info(
-        "query: model=%s messages=%d chars=%d trace=%s",
+        "query: model=%s messages=%d chars=%d trace=%s widgets(p/s/e)=%d/%d/%d ctx=%d tools=%d sources=%d rounds=%d",
         model,
         len(messages),
         sum(len(m["content"]) for m in messages),
         trace_id or "-",
+        len(widgets.get("primary") or []),
+        len(widgets.get("secondary") or []),
+        len(widgets.get("extra") or []),
+        len(payload.get("context") or []),
+        len(payload.get("tools") or []),
+        len(sources),
+        tool_rounds,
     )
+    log.debug("payload keys: %s", sorted(payload.keys()))
 
     async def stream() -> AsyncIterator[str]:
         if not api_key:
@@ -231,6 +313,13 @@ async def query(request: Request) -> Response:
             body["max_tokens"] = settings.max_tokens
         if 0 < settings.top_p < 1:
             body["top_p"] = settings.top_p
+
+        # Offer the widget-data tool whenever the user has widgets in context and
+        # we are not stuck in a tool-call loop.
+        use_tools = bool(sources) and tool_rounds < settings.max_tool_rounds
+        if use_tools:
+            body["tools"] = [GET_WIDGET_DATA_TOOL]
+            body["tool_choice"] = "auto"
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -260,6 +349,9 @@ async def query(request: Request) -> Response:
                         else None
                     )
                     reason_buf = ""
+                    # OpenAI-style streamed tool calls arrive as fragments that
+                    # must be concatenated by index before we can parse the JSON.
+                    pending_calls: dict[int, dict[str, str]] = {}
 
                     def take_reasoning(force: bool = False) -> list[str]:
                         nonlocal reason_buf
@@ -295,6 +387,20 @@ async def query(request: Request) -> Response:
                         if not choices:
                             continue
                         delta = choices[0].get("delta") or {}
+
+                        for call in delta.get("tool_calls") or []:
+                            index = int(call.get("index", 0) or 0)
+                            slot = pending_calls.setdefault(
+                                index, {"name": "", "arguments": "", "id": ""}
+                            )
+                            if call.get("id"):
+                                slot["id"] = call["id"]
+                            function = call.get("function") or {}
+                            if function.get("name"):
+                                slot["name"] = function["name"]
+                            if function.get("arguments"):
+                                slot["arguments"] += function["arguments"]
+
                         # Some vendors (MiniMax with reasoning_split, DeepSeek)
                         # send the chain of thought in a separate field.
                         explicit_reasoning = delta.get("reasoning_content") or delta.get(
@@ -345,6 +451,52 @@ async def query(request: Request) -> Response:
                         yield frame
                     if answer_tail:
                         yield _sse("copilotMessageChunk", {"delta": answer_tail})
+
+                    # A tool call ends this turn. Workspace executes it against
+                    # the live dashboard and POSTs the data back to /v1/query.
+                    if pending_calls:
+                        call = pending_calls[min(pending_calls)]
+                        name = call["name"] or "get_widget_data"
+                        try:
+                            arguments = (
+                                json.loads(call["arguments"]) if call["arguments"] else {}
+                            )
+                        except json.JSONDecodeError:
+                            arguments = {}
+                            yield _status(
+                                "模型返回的工具参数不是合法 JSON，本次调用已跳过。",
+                                "WARNING",
+                            )
+                        if name != "get_widget_data":
+                            log.warning("unsupported tool requested: %s", name)
+                            yield _status(f"模型请求了不支持的工具 {name}，已忽略。", "WARNING")
+                        elif arguments:
+                            arguments = normalize_get_widget_args(arguments, sources)
+                            log.info(
+                                "function call: %s args=%s",
+                                name,
+                                json.dumps(arguments, ensure_ascii=False)[:400],
+                            )
+                            yield _sse(
+                                "copilotFunctionCall",
+                                {
+                                    "function": name,
+                                    "input_arguments": arguments,
+                                    # Workspace drops widget tool results when
+                                    # extra_state is empty (it assumes the
+                                    # built-in copilot reads data from its own
+                                    # store). A non-empty marker keeps the data
+                                    # in the follow-up payload.
+                                    "extra_state": {
+                                        "adapter": "openai-compatible-copilot",
+                                        "requested_widgets": len(
+                                            arguments.get("data_sources") or []
+                                        ),
+                                    },
+                                },
+                            )
+                        yield _done()
+                        return
 
         except httpx.TimeoutException:
             log.error("upstream timeout after %ss", settings.upstream_timeout)
