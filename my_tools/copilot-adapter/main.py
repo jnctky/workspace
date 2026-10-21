@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from settings import settings
 from translate import build_messages
+from reasoning import ReasoningSplitter
 
 logging.basicConfig(
     level=logging.INFO,
@@ -249,6 +250,34 @@ async def query(request: Request) -> Response:
                         yield _done()
                         return
 
+                    # Reasoning models (MiniMax M-series) inline their chain of
+                    # thought as <think>…</think> in the content stream. Peel it
+                    # out so the chat shows a collapsible reasoning section
+                    # instead of raw tags.
+                    splitter = (
+                        ReasoningSplitter()
+                        if settings.reasoning_mode != "inline"
+                        else None
+                    )
+                    reason_buf = ""
+
+                    def take_reasoning(force: bool = False) -> list[str]:
+                        nonlocal reason_buf
+                        if settings.reasoning_mode == "hide":
+                            reason_buf = ""
+                            return []
+                        if not reason_buf:
+                            return []
+                        if (
+                            not force
+                            and len(reason_buf) < settings.reasoning_chunk_chars
+                            and "\n" not in reason_buf
+                        ):
+                            return []
+                        text = reason_buf.strip()
+                        reason_buf = ""
+                        return [_status(text)] if text else []
+
                     async for line in resp.aiter_lines():
                         if not line or not line.startswith("data:"):
                             continue
@@ -266,9 +295,35 @@ async def query(request: Request) -> Response:
                         if not choices:
                             continue
                         delta = choices[0].get("delta") or {}
+                        # Some vendors (MiniMax with reasoning_split, DeepSeek)
+                        # send the chain of thought in a separate field.
+                        explicit_reasoning = delta.get("reasoning_content") or delta.get(
+                            "reasoning"
+                        )
+                        if explicit_reasoning:
+                            reason_buf += explicit_reasoning
+                            for frame in take_reasoning():
+                                yield frame
+
                         text = delta.get("content")
                         if text:
-                            yield _sse("copilotMessageChunk", {"delta": text})
+                            if splitter is None:
+                                yield _sse("copilotMessageChunk", {"delta": text})
+                            else:
+                                for kind, piece in splitter.feed(text):
+                                    if kind == "answer":
+                                        # Answer started: push out any reasoning
+                                        # still buffered so the transcript keeps
+                                        # its ordering (thinking, then answer).
+                                        for frame in take_reasoning(force=True):
+                                            yield frame
+                                        yield _sse(
+                                            "copilotMessageChunk", {"delta": piece}
+                                        )
+                                    else:
+                                        reason_buf += piece
+                                        for frame in take_reasoning():
+                                            yield frame
 
                         finish = choices[0].get("finish_reason")
                         if finish == "length":
@@ -277,6 +332,19 @@ async def query(request: Request) -> Response:
                                 "OPENAI_MAX_TOKENS。",
                                 "WARNING",
                             )
+
+                    # Flush anything the splitter held back (partial tag tail or
+                    # an unclosed reasoning block).
+                    if splitter is not None:
+                        tail = splitter.flush()
+                        answer_tail = "".join(p for k, p in tail if k == "answer")
+                        reason_buf += "".join(p for k, p in tail if k == "think")
+                    else:
+                        answer_tail = ""
+                    for frame in take_reasoning(force=True):
+                        yield frame
+                    if answer_tail:
+                        yield _sse("copilotMessageChunk", {"delta": answer_tail})
 
         except httpx.TimeoutException:
             log.error("upstream timeout after %ss", settings.upstream_timeout)

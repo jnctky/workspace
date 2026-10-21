@@ -71,6 +71,13 @@ class Settings:
     upstream_timeout: float = _env_float("UPSTREAM_TIMEOUT", 300.0)
     upstream_proxy: str = _env("UPSTREAM_PROXY", "")
 
+    # --- reasoning stream (<think> blocks) ---
+    # status : fold into a collapsible "step-by-step reasoning" section (default)
+    # hide   : drop it entirely
+    # inline : keep the raw tags in the answer (old behaviour)
+    reasoning_mode: str = _env("REASONING_MODE", "status").lower()
+    reasoning_chunk_chars: int = _env_int("REASONING_CHUNK_CHARS", 320)
+
     # --- identity shown in Workspace ---
     agent_id: str = _env("AGENT_ID", "openai-compatible-copilot")
     agent_name: str = _env("AGENT_NAME", "MiniMax Copilot")
