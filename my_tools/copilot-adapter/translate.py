@@ -30,6 +30,10 @@ Rules:
 the left" or any concrete price/number, call `get_widget_data` first.
 - Never say you cannot see widget data without having called the tool in this \
 turn; call it instead.
+- When asked what a widget currently SHOWS, do not invent or replace its \
+parameters: use the exact data_args listed in the widget's metadata below. \
+Only change a parameter when the user explicitly asks for a different one, \
+and say so in the answer.
 - When you quote a number that came from a widget, name the widget it came \
 from. Never invent prices, volumes or dates that are not in the returned data.
 - If a widget needed for the question is not in the catalogue below, say which \
