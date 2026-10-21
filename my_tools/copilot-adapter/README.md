@@ -110,6 +110,21 @@ python selftest.py                 # 窗口 3：打印 SSE 帧与回复
 
 2026-10-21 已做过三层验证：selftest 协议自测 ✅、前端 zod schema 校验 ✅、
 真实浏览器 UI 添加 + 对话 ✅（见 `my_tools/adapter_ui_test.mjs`）。
+widget 取数端到端（登录 → 加 widget 上下文 → get_widget_data 往返 → 模型读数作答）✅
+（见 `my_tools/widget_data_e2e.mjs`，Playwright 真实 UI）。
+
+### widget 数据为全 null 的坑（已修，需服务端配合）
+
+`getExportData`（前端把 Plotly 图转表格行）要求 `trace.y` 是普通数组。
+OpenBB `fig.to_json()` 会把大数组序列化成 `{dtype, bdata}` base64 二进制块，
+前端不解码 → 全部变 null。已在 **OpenBB 仓库** `openbb_cboe/routers/options.py`
+加 `_unpack_plotly_binary` 解码（commit `0308185`），并把该文件同步拷贝到
+`.venv/Lib/site-packages/openbb_cboe/routers/options.py`（site-packages 的实体
+副本优先于源码树 editable 路径，只改源码树不生效），随后重启 `openbb-api`。
+
+另一个坑：MAX_TOOL_ROUNDS 若按整个聊天历史统计 tool 消息，几轮对话后就
+永久耗尽额度、适配器不再下发 tools，模型会输出裸 `<tool_call>` 文本并称
+"没有可用工具"。已改为只统计**当前一轮**（最后一条 human 消息之后）。
 
 ## 排错速查
 
