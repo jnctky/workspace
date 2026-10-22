@@ -53,7 +53,14 @@ different id.
 inside them: sending a different `symbol` in `input_args` does not refetch, it \
 still returns that chart's own rows. When the user asks for another symbol's \
 candles or a specific date range, call `equity_price_historical_nasdaq_obb` \
-(origin + id, no widget_uuid) with `symbol`, `start_date`, `end_date`.\
+(origin + id, no widget_uuid) with `symbol`, `start_date`, `end_date`.
+- For a general "how is <symbol> doing" question, fetch \
+`equity_price_quote_nasdaq_obb` (latest quote) and, when the user wants the \
+recent trend or a date range, also `equity_price_historical_nasdaq_obb` - both \
+by origin + id with no widget_uuid. Do not answer those questions from a \
+`tv_charting` widget unless the user is explicitly asking about that chart.
+- Never write `[called tool with {...}]` or any other pseudo tool-call syntax in \
+an answer. Tool calls only happen through the tools API.\
 - `run_trading_agents` launches a FULL multi-agent research pipeline (analysts, \
 Bull/Bear debate, trader, risk debate, portfolio manager). It takes several \
 minutes. Only call it when the user explicitly asks for a deep/full/comprehensive \
@@ -82,7 +89,12 @@ def _strip_markers(text: str) -> str:
 
 
 def _as_function_call(content: str) -> str | None:
-    """Hidden function-call AI messages look like {"function": ..., ...}."""
+    """Hidden function-call AI messages look like {"function": ..., ...}.
+
+    Rendered as plain prose on purpose: an earlier bracketed rendering
+    (`[called get_widget_data with {...}]`) was copied verbatim by MiniMax as a
+    normal answer, so the chat showed a fake tool call instead of data.
+    """
     stripped = content.strip()
     if not (stripped.startswith("{") and stripped.endswith("}")):
         return None
@@ -94,7 +106,56 @@ def _as_function_call(content: str) -> str | None:
         return None
     name = parsed.get("function")
     args = parsed.get("input_arguments")
-    return f"[called {name} with {_json_block(args, 600)}]" if args else f"[called {name}]"
+    if args:
+        return (
+            f"I already called the {name} tool with these arguments: "
+            f"{_json_block(args, 600)}"
+        )
+    return f"I already called the {name} tool."
+
+
+# A model can echo a tool call as plain text instead of emitting a real one.
+# When that happens the chat shows `[called get_widget_data with {...}]` and no
+# data is fetched. Detect the shape so the adapter can execute it instead.
+LEAKED_CALL_RE = re.compile(
+    r"^\s*\[called\s+([A-Za-z_][\w.]*)\s+with\s+(\{.*\})\]\s*$", re.S
+)
+
+
+def parse_leaked_call(text: str) -> tuple[str, dict[str, Any]] | None:
+    """Return (function_name, arguments) when `text` is an echoed tool call."""
+    match = LEAKED_CALL_RE.match(text or "")
+    if not match:
+        return None
+    try:
+        arguments = json.loads(match.group(2))
+    except Exception:
+        return None
+    if not isinstance(arguments, dict):
+        return None
+    return match.group(1), arguments
+
+
+def leak_guard(
+    hold: str | None, piece: str
+) -> tuple[str | None, str | None]:
+    """Buffer text that might be a leaked tool call.
+
+    `hold` is the text withheld so far, or None once the answer is known to be
+    ordinary prose. Returns the new hold and the text (if any) that is safe to
+    stream now.
+    """
+    if hold is None:
+        return None, piece
+    buffered = hold + piece
+    stripped = buffered.lstrip()
+    prefix = "[called"
+    if stripped.startswith(prefix):
+        return buffered, None
+    if prefix.startswith(stripped[: len(prefix)]) and "\n" not in stripped:
+        return buffered, None
+    return None, buffered
+
 
 
 def _collect_tables(obj: Any, found: list[list[dict[str, Any]]], depth: int = 0) -> None:
@@ -454,6 +515,13 @@ def normalize_get_widget_args(
         args = item.get("input_args")
         if not isinstance(args, dict) or not args:
             args = dict((match or {}).get("input_args") or {})
+        elif match is not None:
+            # A catalogue widget only understands the parameters it declares
+            # (tv_charting declares none: it always shows the symbol selected
+            # inside it). Silently forwarding extra args made the model believe
+            # it had fetched another symbol, so keep the declared keys only.
+            declared = set(match.get("input_args") or {})
+            args = {key: value for key, value in args.items() if key in declared}
         entry: dict[str, Any] = {
             "widget_uuid": widget_uuid,
             "origin": origin,

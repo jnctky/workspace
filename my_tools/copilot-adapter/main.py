@@ -28,7 +28,9 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from settings import settings
 from translate import (
     build_messages,
+    leak_guard,
     normalize_get_widget_args,
+    parse_leaked_call,
     tool_call_count,
     widget_sources,
 )
@@ -584,6 +586,11 @@ async def query(request: Request) -> Response:
                         # OpenAI-style streamed tool calls arrive as fragments that
                         # must be concatenated by index before we can parse the JSON.
                         pending_calls: dict[int, dict[str, str]] = {}
+                        # Some models echo a tool call as plain text instead of a
+                        # real function call. Text that could be that echo is held
+                        # back here and turned into a real call later (None once
+                        # the answer is known to be ordinary prose).
+                        leak_hold: str | None = ""
 
                         def take_reasoning(force: bool = False) -> list[str]:
                             nonlocal reason_buf
@@ -646,7 +653,9 @@ async def query(request: Request) -> Response:
                             text = delta.get("content")
                             if text:
                                 if splitter is None:
-                                    yield _sse("copilotMessageChunk", {"delta": text})
+                                    leak_hold, out = leak_guard(leak_hold, text)
+                                    if out:
+                                        yield _sse("copilotMessageChunk", {"delta": out})
                                 else:
                                     for kind, piece in splitter.feed(text):
                                         if kind == "answer":
@@ -655,9 +664,11 @@ async def query(request: Request) -> Response:
                                             # its ordering (thinking, then answer).
                                             for frame in take_reasoning(force=True):
                                                 yield frame
-                                            yield _sse(
-                                                "copilotMessageChunk", {"delta": piece}
-                                            )
+                                            leak_hold, out = leak_guard(leak_hold, piece)
+                                            if out:
+                                                yield _sse(
+                                                    "copilotMessageChunk", {"delta": out}
+                                                )
                                         else:
                                             reason_buf += piece
                                             for frame in take_reasoning():
@@ -682,7 +693,31 @@ async def query(request: Request) -> Response:
                         for frame in take_reasoning(force=True):
                             yield frame
                         if answer_tail:
-                            yield _sse("copilotMessageChunk", {"delta": answer_tail})
+                            leak_hold, out = leak_guard(leak_hold, answer_tail)
+                            if out:
+                                yield _sse("copilotMessageChunk", {"delta": out})
+
+                        # A held-back answer that is really an echoed tool call is
+                        # executed instead of being shown as chat text.
+                        if leak_hold is not None:
+                            held = leak_hold.strip()
+                            if held:
+                                leaked = parse_leaked_call(held)
+                                if leaked:
+                                    leaked_name, leaked_args = leaked
+                                    pending_calls[10**6] = {
+                                        "name": leaked_name,
+                                        "arguments": json.dumps(
+                                            leaked_args, ensure_ascii=False
+                                        ),
+                                        "id": "",
+                                    }
+                                    log.info(
+                                        "recovered echoed tool call: %s", leaked_name
+                                    )
+                                else:
+                                    yield _sse("copilotMessageChunk", {"delta": leak_hold})
+                            leak_hold = None
 
                         if not pending_calls:
                             # Plain answer finished this request.

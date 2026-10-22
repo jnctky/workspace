@@ -31,11 +31,19 @@ async def chat(request: Request):
     system_chars = sum(
         len(str(m.get("content") or "")) for m in messages if m.get("role") == "system"
     )
-    reply = (
-        f"[mock-openai] model={body.get('model')} "
-        f"messages={len(messages)} system_chars={system_chars}\n\n"
-        f"最后一条用户消息前 200 字：\n{last_user[:200]}"
-    )
+    if "LEAK" in last_user:
+        # Reproduces MiniMax echoing a tool call as plain text instead of
+        # emitting a real function call (see translate.parse_leaked_call).
+        reply = (
+            '[called get_widget_data with {"data_sources": [{"origin": "OpenBB '
+            'Sandbox", "id": "tv_charting", "input_args": {"symbol": "SNDK"}}]}]'
+        )
+    else:
+        reply = (
+            f"[mock-openai] model={body.get('model')} "
+            f"messages={len(messages)} system_chars={system_chars}\n\n"
+            f"最后一条用户消息前 200 字：\n{last_user[:200]}"
+        )
 
     async def gen():
         for index in range(0, len(reply), 12):
