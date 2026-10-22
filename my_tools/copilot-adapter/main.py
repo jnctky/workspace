@@ -114,7 +114,18 @@ GET_WIDGET_DATA_TOOL: dict[str, Any] = {
             "Fetch the current data of one or more dashboard widgets. Use this "
             "before answering any question about widget values, prices, tables "
             "or charts. Pass the exact origin and id shown in the widget "
-            "catalogue, plus widget_uuid when available."
+            "catalogue, plus widget_uuid when available.\n"
+            "HARD RULES: (1) Only send ids that appear verbatim in the widget "
+            "catalogue or that you have verified exist on the backend. Never "
+            "invent an id by shortening or guessing an endpoint name - "
+            "`equity_price_historical` does not exist, the real id is "
+            "`equity_price_historical_nasdaq_obb`. (2) A widget_uuid may only "
+            "be sent together with the id of the widget instance it belongs "
+            "to. Never reuse one widget's uuid for a different id - the request "
+            "will return that other widget's cached rows. (3) If the widget "
+            "you need is not in the catalogue, omit widget_uuid and address the "
+            "backend registry by origin + id, or tell the user which widget to "
+            "add."
         ),
         "parameters": {
             "type": "object",
@@ -135,7 +146,11 @@ GET_WIDGET_DATA_TOOL: dict[str, Any] = {
                             },
                             "id": {
                                 "type": "string",
-                                "description": "Widget id, e.g. 'equity_price_historical'.",
+                                "description": (
+                                    "Widget id exactly as shown in the catalogue, "
+                                    "e.g. 'equity_price_quote_nasdaq_obb', "
+                                    "'equity_price_historical_nasdaq_obb'."
+                                ),
                             },
                             "input_args": {
                                 "type": "object",

@@ -276,6 +276,9 @@ export function useFunctionCall() {
   const getDashboardWidgetData = useShallowCopilotDataStore(
     (state) => state.getDashboardWidgetData,
   );
+  const getWidgetsInCurrentDashboard = useShallowCopilotDataStore(
+    (state) => state.getWidgetsInCurrentDashboard,
+  );
 
   const getAppWidget = useShallowAppWidgetsStore((s) => s.getAppWidget);
   const userToken = useShallowAuthStore((s) => s.user?.token);
@@ -405,6 +408,10 @@ export function useFunctionCall() {
                 dataSource,
                 getWidgetFromBackend,
                 getDashboardWidgetData,
+                (uuid) =>
+                  getWidgetsInCurrentDashboard
+                    ? ((getWidgetsInCurrentDashboard(uuid) as WidgetT | null) ?? null)
+                    : undefined,
               );
               break;
           }
@@ -1252,6 +1259,7 @@ export async function getCustomWidgetsData(
   dataSource: DataSourceT,
   getWidgetFromBackend: (backendName: string, widgetId: string) => WidgetT | null,
   getDashboardWidgetData: (widgetId: string) => any,
+  getWidgetInstance?: (widgetUuid: string) => WidgetT | null | undefined,
 ): Promise<any> {
   let result: any = null;
   const context = `Fetching data for ${describeDataSource(dataSource)}`;
@@ -1271,8 +1279,30 @@ export async function getCustomWidgetsData(
     // widget metadata. If the widget is placed on the current dashboard its data
     // is already loaded, so fall back to that instead of failing.
     if (widgetUuid) {
-      const widgetData = getDashboardWidgetData(widgetUuid);
-      if (widgetData) return widgetData.data;
+      // Guard against a wrong-id / wrong-uuid pairing: reusing another widget's
+      // uuid used to silently return that widget's cached rows, which made the
+      // model report unrelated data (e.g. a Quote table) for the requested
+      // symbol. Only serve the cached rows when the instance really is the
+      // requested widget.
+      const instance = getWidgetInstance?.(widgetUuid);
+      const stripOrigin = (id?: string) => id?.replace(`${dataSource.origin}-`, "");
+      const requestedId = stripOrigin(dataSource.id);
+      if (instance === undefined) {
+        // Lookup unavailable (older caller): keep the previous behaviour and
+        // serve whatever the dashboard has cached for this uuid.
+        const widgetData = getDashboardWidgetData(widgetUuid);
+        if (widgetData) return widgetData.data;
+      } else if (instance) {
+        const instanceId = stripOrigin(instance.widgetId);
+        if (instanceId !== requestedId) {
+          throw new CopilotError(
+            CopilotErrorType.NOT_FOUND,
+            `Widget id "${dataSource.id}" is not registered under ${dataSource.origin}. The supplied widget_uuid belongs to "${instance.widgetId}", so its rows were not used. Send an id from the widget catalogue (e.g. equity_price_historical_nasdaq_obb) or omit widget_uuid.`,
+          );
+        }
+        const widgetData = getDashboardWidgetData(widgetUuid);
+        if (widgetData) return widgetData.data;
+      }
     }
     throw new CopilotError(
       CopilotErrorType.NOT_FOUND,

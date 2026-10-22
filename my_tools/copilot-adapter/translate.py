@@ -39,6 +39,21 @@ from. Never invent prices, volumes or dates that are not in the returned data.
 - If a widget needed for the question is not in the catalogue below, say which \
 widget the user should add to the dashboard (or attach to the chat), instead \
 of guessing.
+- Widget ids are exact strings. Widgets served by the local OpenBB Platform \
+backend append provider + `_obb` to the endpoint path: \
+`equity_price_quote_nasdaq_obb`, `equity_price_historical_nasdaq_obb`, \
+`equity_price_historical_cboe_obb`. A bare endpoint name such as \
+`equity_price_historical` is NOT a valid id - sending it returns another \
+widget's cached rows. If the widget you need is not in the catalogue, send the \
+backend-registry id (origin + id, no widget_uuid) or ask the user to add it.
+- A `widget_uuid` belongs to exactly one widget instance: only send it together \
+with the id listed next to that uuid in the catalogue. Never reuse a uuid for a \
+different id.
+- Chart widgets such as `tv_charting` only expose the symbol currently selected \
+inside them: sending a different `symbol` in `input_args` does not refetch, it \
+still returns that chart's own rows. When the user asks for another symbol's \
+candles or a specific date range, call `equity_price_historical_nasdaq_obb` \
+(origin + id, no widget_uuid) with `symbol`, `start_date`, `end_date`.\
 - `run_trading_agents` launches a FULL multi-agent research pipeline (analysts, \
 Bull/Bear debate, trader, risk debate, portfolio manager). It takes several \
 minutes. Only call it when the user explicitly asks for a deep/full/comprehensive \
@@ -378,6 +393,19 @@ def resolve_sampling(payload: dict[str, Any], default_temperature: float) -> flo
     return _safe_float(payload.get("temperature"), default_temperature)
 
 
+# Bare endpoint names models tend to shorten ids to. The local OpenBB Platform
+# backend registers widgets as `<endpoint path>_<provider>_obb`, so a bare
+# `equity_price_historical` resolves to nothing and used to fall back to an
+# unrelated widget's cached rows. Rewrite the handful we know are safe.
+BARE_ID_ALIASES = {
+    "equity_price_historical": "equity_price_historical_nasdaq_obb",
+    "equity_price_quote": "equity_price_quote_nasdaq_obb",
+    "equity_fundamental_income_statement": "equity_fundamental_income_nasdaq_obb",
+    "equity_fundamental_balance_sheet": "equity_fundamental_balance_nasdaq_obb",
+    "equity_fundamental_cash_flow": "equity_fundamental_cash_nasdaq_obb",
+}
+
+
 def normalize_get_widget_args(
     arguments: dict[str, Any], sources: list[dict[str, Any]]
 ) -> dict[str, Any]:
@@ -393,9 +421,12 @@ def normalize_get_widget_args(
 
     by_key: dict[tuple[str, str], dict[str, Any]] = {}
     by_id: dict[str, dict[str, Any]] = {}
+    by_uuid: dict[str, dict[str, Any]] = {}
     for source in sources:
         by_key[(source.get("origin", ""), source.get("id", ""))] = source
         by_id.setdefault(source.get("id", ""), source)
+        if source.get("widget_uuid"):
+            by_uuid[source["widget_uuid"]] = source
 
     normalized: list[dict[str, Any]] = []
     for item in raw_sources:
@@ -403,15 +434,28 @@ def normalize_get_widget_args(
             continue
         origin = item.get("origin") or ""
         widget_id = item.get("id") or ""
+        widget_id = BARE_ID_ALIASES.get(widget_id, widget_id)
         match = by_key.get((origin, widget_id)) or by_id.get(widget_id)
         if match:
             origin = origin or match.get("origin", "")
             widget_id = widget_id or match.get("id", "")
+        # A uuid identifies one specific widget instance. If the model paired it
+        # with a different id (e.g. reused the quote widget's uuid for a
+        # historical request), drop the uuid so Workspace resolves the requested
+        # id against the backend registry instead of returning the other
+        # widget's cached rows.
+        widget_uuid = item.get("widget_uuid")
+        if widget_uuid:
+            owner = by_uuid.get(widget_uuid)
+            if owner is not None and owner.get("id") != widget_id:
+                widget_uuid = None
+        if not widget_uuid:
+            widget_uuid = (match or {}).get("widget_uuid")
         args = item.get("input_args")
         if not isinstance(args, dict) or not args:
             args = dict((match or {}).get("input_args") or {})
         entry: dict[str, Any] = {
-            "widget_uuid": item.get("widget_uuid") or (match or {}).get("widget_uuid"),
+            "widget_uuid": widget_uuid,
             "origin": origin,
             "id": widget_id,
             "input_args": args,

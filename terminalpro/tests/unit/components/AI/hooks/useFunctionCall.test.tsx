@@ -148,6 +148,7 @@ vi.mock("~/lib/utils", async (importOriginal) => {
 import {
   convertToCopilotData,
   extractUuidFromWidgetId,
+  getCustomWidgetsData,
   useFunctionCall,
 } from "~/components/AI/hooks/useFunctionCall";
 import { useManageNavigationBar } from "~/components/AI/hooks/useManageNavigationBar";
@@ -1771,5 +1772,40 @@ describe("extractUuidFromWidgetId pattern", () => {
     const widgetId = "file_123E4567-E89B-12D3-A456-426614174000";
     const result = extractUuidFromWidgetId(widgetId);
     expect(result).toBe("123E4567-E89B-12D3-A456-426614174000");
+  });
+});
+
+describe("getCustomWidgetsData widget id / uuid pairing", () => {
+  const dataSource = {
+    origin: "OpenBB Platform (local 6900)",
+    id: "equity_price_historical",
+    widget_uuid: "quote-widget-uuid",
+    input_args: { symbol: "SNDK" },
+  } as any;
+
+  it("refuses to serve another widget's cached rows when the uuid belongs to a different id", async () => {
+    await expect(
+      getCustomWidgetsData(
+        dataSource,
+        () => null,
+        () => ({ data: [{ symbol: "AAPL" }] }),
+        () => ({ widgetId: "equity_price_quote_nasdaq_obb" }) as any,
+      ),
+    ).rejects.toMatchObject({
+      error_type: "not_found",
+      content: expect.stringContaining("widget_uuid belongs to"),
+    });
+  });
+
+  it("still serves cached rows when the uuid really is the requested widget", async () => {
+    const rows = [{ symbol: "AAPL" }];
+    await expect(
+      getCustomWidgetsData(
+        { ...dataSource, id: "equity_price_quote_nasdaq_obb" },
+        () => null,
+        () => ({ data: rows }),
+        () => ({ widgetId: "equity_price_quote_nasdaq_obb" }) as any,
+      ),
+    ).resolves.toEqual(rows);
   });
 });
