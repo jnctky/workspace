@@ -20,6 +20,7 @@ import { cn, saveToLS } from "~/lib/utils";
 import DragFileHere from "./AI/DragFileHere";
 import { useDragAndDropFiles } from "./GridLayout.hooks";
 import Icon from "./Icon";
+import BulkSymbolBar from "./LayoutAuth/BulkSymbolBar";
 
 function setPointerEvents(removeClass = true) {
   const workarea = document.getElementById("workarea");
@@ -361,6 +362,7 @@ export const GridLayout = forwardRef<HTMLDivElement, GridLayoutProps>(
         })}
       >
         <input id="dashboard-file-upload" {...getInputProps()} />
+        {saveTab && !locked && !isShared && <BulkSymbolBar />}
         {isDragActive && (
           <div className="absolute inset-0 z-50 flex items-center justify-center">
             <DragFileHere />

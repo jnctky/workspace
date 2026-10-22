@@ -11,11 +11,11 @@ import { useShallowThemeStore } from "~/lib/state/theme";
 // Local OpenBB Platform serving OHLCV bars for the Copilot. The TradingView
 // embed widget exposes no data API, so the Copilot reads the same symbol's
 // daily bars from the local platform instead.
-const OPENBB_PLATFORM_URL = "http://127.0.0.1:6900";
+export const OPENBB_PLATFORM_URL = "http://127.0.0.1:6900";
 const AI_BARS_WINDOW_DAYS = 100;
 const AI_BARS_MAX_ROWS = 30;
 
-const DEFAULT_SYMBOLS = [
+export const DEFAULT_SYMBOLS = [
   { label: "AAPL", value: "NASDAQ:AAPL" },
   { label: "GOOGL", value: "NASDAQ:GOOGL" },
   { label: "NVDA", value: "NASDAQ:NVDA" },

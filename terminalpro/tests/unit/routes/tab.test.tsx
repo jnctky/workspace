@@ -68,6 +68,9 @@ vi.mock("~/lib/utils", async () => {
   return {
     getInnerTabsGridLayout: actual.getInnerTabsGridLayout,
     resolveInnerTabParams: actual.resolveInnerTabParams,
+    // the page subscribes to bulk-symbol remount signals; a no-op keeps the
+    // assertions focused on inner-tab params
+    useEventListener: () => {},
   };
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Layout } from "react-grid-layout";
 import { useParams, useSearchParams } from "react-router-dom";
 
@@ -11,7 +11,7 @@ import { useMobile } from "~/lib/providers/MobileProvider";
 import { type GridData, useAppStore, useShallowAppStore } from "~/lib/state/app";
 import { useShallowSharedAppStore } from "~/lib/state/sharedApp";
 import { useThemeStore } from "~/lib/state/theme";
-import { resolveInnerTabParams } from "~/lib/utils";
+import { resolveInnerTabParams, useEventListener } from "~/lib/utils";
 
 import AuthedAppNotFound from "./AuthedAppNotFound";
 
@@ -91,6 +91,15 @@ export default function TabPage() {
     [gridLayout?.[currentTab]],
   );
 
+  // A dashboard-wide retarget (bulk ticker bar) rewrites every widget's symbol
+  // at once. Some widgets keep their display state inside the instance (the
+  // single-symbol select caches its own `selected`), so remounting is the only
+  // reliable way to make every header show the new ticker.
+  const [widgetRevision, setWidgetRevision] = useState(0);
+  useEventListener("bulkSymbolApplied", () => {
+    setWidgetRevision((revision) => revision + 1);
+  });
+
   // Current tab widgets (visible in grid)
   const gridItemsMemo = useMemo(() => {
     const uniqueGrid = currentGrid.reduce((acc, layout) => {
@@ -112,11 +121,15 @@ export default function TabPage() {
           }}
           className={l.i === "empty-dashboard-cta" ? "" : "!dark:bg-none !bg-none"}
         >
-          <WidgetWrapper uuid={l.i} activeDashboardId={id} />
+          <WidgetWrapper
+            key={`${l.i}-${widgetRevision}`}
+            uuid={l.i}
+            activeDashboardId={id}
+          />
         </div>
       );
     });
-  }, [currentGrid, isMobile]);
+  }, [currentGrid, isMobile, widgetRevision]);
 
   const emptyDashMemo = useMemo(() => {
     return isShared ? (
