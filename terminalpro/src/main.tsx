@@ -29,6 +29,8 @@ import { ErrorBoundary } from "react-error-boundary";
 import { useMcpAuthHandler } from "./components/AI/hooks/mcp/onMcpAuth";
 import { setGlobalGridOptions } from "./components/General/Table/AgGrid";
 import AuthWelcome from "./components/LayoutAuth/AuthWelcome";
+import { startAutoTranslate } from "./i18n/autoTranslate";
+import { initI18n } from "./i18n";
 import {
   inSnowflakeNativeApp,
   TOOLTIP_OPEN_DELAY_MS,
@@ -424,6 +426,8 @@ if ("serviceWorker" in navigator) {
 function bootstrap() {
   const config = getConfig();
 
+  initI18n();
+
   // Apply branding from runtime config
   if (config.whiteLabel.mainColor) {
     applyBrandColors(config.whiteLabel.mainColor);
@@ -487,6 +491,10 @@ function bootstrap() {
       )}
     </ErrorBoundary>,
   );
+
+  // Upstream OpenBB components render English literals directly; the runtime
+  // dictionary patches them after mount and on every subsequent DOM change.
+  startAutoTranslate();
 }
 
 bootstrap();

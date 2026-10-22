@@ -305,7 +305,7 @@ describe("BulkSymbolBar", () => {
 
   it("appends only on multi-symbol widgets, replaces on single-symbol ones", async () => {
     render(<BulkSymbolBar />);
-    fireEvent.click(screen.getByText("append"));
+    fireEvent.click(screen.getByText("Append"));
     fireEvent.change(screen.getByPlaceholderText("e.g. SNDK"), {
       target: { value: "NVDA" },
     });

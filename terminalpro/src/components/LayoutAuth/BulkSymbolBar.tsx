@@ -15,6 +15,7 @@ import {
   DEFAULT_SYMBOLS,
   OPENBB_PLATFORM_URL,
 } from "~/components/Widgets/TVWidgets/AdvancedWidget";
+import { t } from "~/i18n";
 import { useTabContext } from "~/lib/contexts/TabContext";
 import { useAppStore, useShallowAppStore, type Widget } from "~/lib/state/app";
 import { COLORS, cn, triggerCustomEvent, uuidv4 } from "~/lib/utils";
@@ -471,7 +472,7 @@ export default function BulkSymbolBar() {
   function toggleLink() {
     const targets = selectedRows;
     if (!targets.length) {
-      toast.error("No widget selected");
+      toast.error(t("No widget selected"));
       return;
     }
 
@@ -486,7 +487,12 @@ export default function BulkSymbolBar() {
       if (!stillLinked.length) deleteGroup(tabId, linkedGroup.id);
       debounceSaveDashboards();
       triggerCustomEvent("bulkSymbolApplied", { unlinked: true });
-      toast.success(`Unlinked ${targets.length} widgets from ${linkedGroup.name}`);
+      toast.success(
+        t("Unlinked {count} widgets from {group}", {
+          count: targets.length,
+          group: linkedGroup.name,
+        }),
+      );
       return;
     }
 
@@ -495,7 +501,7 @@ export default function BulkSymbolBar() {
       targets[0].symbol ||
       "";
     if (!value) {
-      toast.error("Enter a ticker first");
+      toast.error(t("Enter a ticker first"));
       return;
     }
 
@@ -511,7 +517,7 @@ export default function BulkSymbolBar() {
     if (!group) {
       const created = buildSymbolGroup(targets[0].widget, groups, value);
       if (!created) {
-        toast.error("Selected widgets have no symbol param");
+        toast.error(t("Selected widgets have no symbol param"));
         return;
       }
       addGroup(tabId, created);
@@ -539,12 +545,12 @@ export default function BulkSymbolBar() {
   async function apply() {
     const value = ticker.trim().replace(/\s+/g, "").toUpperCase();
     if (!value) {
-      toast.error("Enter a ticker first");
+      toast.error(t("Enter a ticker first"));
       return;
     }
     const targets = rows.filter((r) => selected.has(r.widget.id));
     if (!targets.length) {
-      toast.error("No widget selected");
+      toast.error(t("No widget selected"));
       return;
     }
 
@@ -657,34 +663,45 @@ export default function BulkSymbolBar() {
     if (changed || chartUpdated) triggerCustomEvent("bulkSymbolApplied", { ticker: value });
 
     if (!changed && !chartUpdated) {
-      toast.info("Nothing to update — selected widgets already use this ticker");
+      toast.info(t("Nothing to update — selected widgets already use this ticker"));
       return;
     }
     const notes: string[] = [];
-    if (newsChanged) notes.push(`${newsChanged} news feed${newsChanged > 1 ? "s" : ""} kept watch list`);
-    if (chartUpdated) notes.push("chart switched");
-    if (skippedMacro.length) notes.push(`skipped ${skippedMacro.length} macro news`);
+    if (newsChanged) {
+      notes.push(t("{count} news feeds kept watch list", { count: newsChanged }));
+    }
+    if (chartUpdated) notes.push(t("chart switched"));
+    if (skippedMacro.length) {
+      notes.push(t("skipped {count} macro news", { count: skippedMacro.length }));
+    }
     if (singleOnly.length) {
       notes.push(
-        `${singleOnly.length} single-symbol widget${singleOnly.length > 1 ? "s" : ""} replaced instead`,
+        t("{count} single-symbol widgets replaced instead", {
+          count: singleOnly.length,
+        }),
       );
     }
     const note = notes.length ? ` (${notes.join(", ")})` : "";
-    toast.success(`Updated ${changed} widget${changed > 1 ? "s" : ""} → ${value}${note}`);
+    toast.success(
+      (changed === 1
+        ? t("Updated 1 widget → {symbol}", { symbol: value })
+        : t("Updated {count} widgets → {symbol}", { count: changed, symbol: value })) +
+        note,
+    );
   }
 
   if (isShared) return null;
 
   return (
     <div className="sticky top-0 z-20 mb-1 flex h-11 items-center gap-2 border-b border-general-border-primary bg-general-bg-primary/95 px-3 backdrop-blur">
-      <span className="body-xs-medium shrink-0 text-ds-text-caption">Ticker</span>
+      <span className="body-xs-medium shrink-0 text-ds-text-caption">{t("Ticker")}</span>
       <input
         value={ticker}
         onChange={(e) => setTicker(e.target.value.toUpperCase())}
         onKeyDown={(e) => {
           if (e.key === "Enter") apply();
         }}
-        placeholder="e.g. SNDK"
+        placeholder={t("e.g. SNDK")}
         spellCheck={false}
         autoComplete="off"
         className="body-xs-regular h-8 w-[150px] shrink-0 rounded-sm border border-general-border-primary bg-input-field-bg px-2 font-mono text-general-label-hover uppercase transition placeholder:font-sans placeholder:text-ds-text-caption hover:border-general-border-primary focus:border-alert-informative focus:outline-hidden"
@@ -698,8 +715,8 @@ export default function BulkSymbolBar() {
             onClick={() => setMode(m)}
             title={
               m === "replace"
-                ? "Overwrite each widget's symbol with the ticker above"
-                : "Append the ticker to each widget's existing symbols (multi-symbol widgets only)"
+                ? t("Overwrite each widget's symbol with the ticker above")
+                : t("Append the ticker to each widget's existing symbols (multi-symbol widgets only)")
             }
             className={cn(
               "body-xs-medium h-8 px-2.5 capitalize transition",
@@ -708,7 +725,7 @@ export default function BulkSymbolBar() {
                 : "bg-transparent text-general-label hover:bg-btn-ghost-bg-hover",
             )}
           >
-            {m}
+            {t(m === "replace" ? "Replace" : "Append")}
           </button>
         ))}
       </div>
@@ -716,13 +733,13 @@ export default function BulkSymbolBar() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="secondary" size="sm" className="shrink-0 gap-1">
-            Widgets {selectedCount}/{selectableCount}
+            {t("Widgets")} {selectedCount}/{selectableCount}
             <Icon id="chevron-down" className="size-3" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="max-h-[60vh] w-[320px] overflow-y-auto">
           <DropdownMenuLabel className="flex items-center justify-between gap-2">
-            <span>Apply to</span>
+            <span>{t("Apply to")}</span>
             <span className="flex gap-2">
               <button
                 type="button"
@@ -731,14 +748,14 @@ export default function BulkSymbolBar() {
                   setSelected(new Set(rows.filter((r) => r.selectable).map((r) => r.widget.id)))
                 }
               >
-                All
+                {t("All")}
               </button>
               <button
                 type="button"
                 className="body-xs-medium text-alert-informative hover:underline"
                 onClick={() => setSelected(new Set())}
               >
-                None
+                {t("None")}
               </button>
             </span>
           </DropdownMenuLabel>
@@ -759,11 +776,11 @@ export default function BulkSymbolBar() {
                 <span className="truncate font-mono text-[10px] text-ds-text-caption">
                   {row.selectable
                     ? `${row.symbol || "—"}${
-                        row.isMacroNews ? "  · macro basket" : row.isNews ? "  · news" : ""
+                        row.isMacroNews ? "  · " + t("macro basket") : row.isNews ? "  · " + t("news") : ""
                       }`
                     : row.isChart
-                      ? "follows every Apply"
-                      : "no symbol param"}
+                      ? t("follows every Apply")
+                      : t("no symbol param")}
                 </span>
               </span>
             </DropdownMenuCheckboxItem>
@@ -772,7 +789,7 @@ export default function BulkSymbolBar() {
       </DropdownMenu>
 
       <Button variant="primary" size="sm" className="shrink-0" onClick={apply}>
-        Apply
+        {t("Apply")}
       </Button>
 
       <div className="h-5 w-px shrink-0 bg-general-border-primary" />
@@ -784,20 +801,20 @@ export default function BulkSymbolBar() {
         onClick={toggleLink}
         title={
           linkedGroup
-            ? `Stop syncing the selected widgets through ${linkedGroup.name} (each keeps its current symbol)`
-            : "Create a dashboard group and bind the selected widgets' Symbol to it — OpenBB's native grouping then keeps them in sync"
+            ? t("Stop syncing the selected widgets through {group} (each keeps its current symbol)", { group: linkedGroup.name })
+            : t("Create a dashboard group and bind the selected widgets' Symbol to it — OpenBB's native grouping then keeps them in sync")
         }
       >
         <Icon id="group-icon" className="size-3" />
-        {linkedGroup ? `Unlink ${linkedGroup.name}` : "Link symbols"}
+        {linkedGroup ? t("Unlink {group}", { group: linkedGroup.name }) : t("Link symbols")}
       </Button>
 
       <span className="body-xs-regular truncate text-ds-text-caption">
         {linkedGroup
-          ? `Symbols are synced through ${linkedGroup.name} · change one, all follow`
+          ? t("Symbols are synced through {group} · change one, all follow", { group: linkedGroup.name })
           : mode === "replace"
-            ? "Overwrites the symbol · chart follows · news keeps its watch list"
-            : "Appends the ticker after existing symbols · chart follows"}
+            ? t("Overwrites the symbol · chart follows · news keeps its watch list")
+            : t("Appends the ticker after existing symbols · chart follows")}
       </span>
     </div>
   );

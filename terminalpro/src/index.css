@@ -17,7 +17,8 @@
     --brand-main: #0088cc;
     --brand-lighter: #33bbff;
     --brand-darker: #006699;
-    --font-family: "Inter";
+    --font-family: "Inter", "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
+      "Hiragino Sans GB", system-ui, sans-serif;
   }
 
   *,
@@ -27,6 +28,17 @@
   ::file-selector-button {
     border-color: var(--color-gray-200, currentColor);
   }
+}
+
+/* --- CJK typography ------------------------------------------------------
+   The UI is designed against Latin metrics. Chinese glyphs sit taller, so the
+   small body sizes need a little more line height when the document is zh-CN.
+   Scoped to the locale attribute that initI18n() sets, so English is untouched. */
+html[lang="zh-CN"] .body-xs-regular,
+html[lang="zh-CN"] .body-xs-medium,
+html[lang="zh-CN"] .body-sm-regular,
+html[lang="zh-CN"] .body-sm-medium {
+  line-height: 1.5;
 }
 
 @utility obb-avatar-user {

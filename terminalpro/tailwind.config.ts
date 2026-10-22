@@ -12,7 +12,15 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        'wl': ['var(--font-family)', 'Inter', 'system-ui', 'sans-serif'],
+        'wl': [
+          'var(--font-family)',
+          'Inter',
+          'Noto Sans SC',
+          'PingFang SC',
+          'Microsoft YaHei',
+          'system-ui',
+          'sans-serif',
+        ],
       },
       colors: {
         ...colors,

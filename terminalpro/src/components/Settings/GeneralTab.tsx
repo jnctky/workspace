@@ -1,9 +1,11 @@
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { RadioGroup, RadioGroupItem } from "~/components/ds/atoms/RadioGroup";
+import { Select } from "~/components/ds/atoms/Select";
 import { Checkbox } from "~/components/Forms/Checkbox";
 import Icon from "~/components/Icon";
 import Tooltip from "~/components/Tooltip";
 import AdvancedSelectedTicker from "~/components/Widgets/Helpers/AdvancedSelectTicker";
+import { LOCALE_OPTIONS, type Locale, setLocale, t, useLocale } from "~/i18n";
 import { inSnowflakeNativeApp } from "~/lib/constants";
 import { getConfig } from "~/lib/runtimeConfig";
 import { useShallowFeatureFlagsStore } from "~/lib/state/featureFlags";
@@ -42,6 +44,8 @@ export default function GeneralTab() {
   const isProTier = useShallowFeatureFlagsStore(
     (state) => state.featureFlags?.tier === "pro",
   );
+
+  const locale = useLocale();
 
   return (
     <TabsPrimitive.Content className="mt-5 mb-5 text-xs" value="general">
@@ -86,6 +90,22 @@ export default function GeneralTab() {
               }
             />
           </RadioGroup>
+        </div>
+        <div className="flex flex-col bg-general-bg-primary rounded-md p-4 gap-2.5 py-5">
+          <p className="body-sm-medium">{t("Language")}</p>
+          <div className="mt-2.5 flex items-center gap-10">
+            <Select
+              value={locale}
+              onChange={(value) => setLocale(value as Locale)}
+              options={LOCALE_OPTIONS}
+              size="sm"
+              className="w-[180px]"
+              placeholder={t("Select an option")}
+            />
+            <span className="text-general-label-hover">
+              {t("Switch the interface language. The page reloads to apply it.")}
+            </span>
+          </div>
         </div>
         <div className="flex flex-col bg-general-bg-primary rounded-md p-4 gap-2.5 py-5">
           <p className="body-sm-medium">Font size</p>
