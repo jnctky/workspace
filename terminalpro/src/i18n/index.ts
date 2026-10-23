@@ -115,7 +115,9 @@ export function t(key: string, vars?: Record<string, string | number>): string {
 export function translateRaw(raw: string): string | null {
   if (currentLocale !== "zh") return null;
   const text = raw.trim();
-  if (!text || text.length > 120) return null;
+  // Upper bound only guards against whole-page garbage (e.g. JSON dumps);
+  // catalog descriptions legitimately run several hundred characters.
+  if (!text || text.length > 500) return null;
   const hit = lookup(text);
   if (hit !== undefined) return hit;
   for (const rule of zhPatterns) {

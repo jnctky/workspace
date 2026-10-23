@@ -48,7 +48,16 @@ describe("i18n", () => {
     setLocale("zh", { reload: false });
     expect(translateRaw("  Cancel  ")).toBe("取消");
     expect(translateRaw("Cancel all orders")).toBeNull();
-    expect(translateRaw(`a${"x".repeat(200)}`)).toBeNull();
+    expect(translateRaw(`a${"x".repeat(600)}`)).toBeNull();
+  });
+
+  it("translates long catalog descriptions (up to 500 chars)", () => {
+    setLocale("zh", { reload: false });
+    const desc =
+      "BLS Consumer Price Index — release documents, news-release tables, reference tables, and the news-release chart package.";
+    expect(translateRaw(desc)).toBe(
+      "BLS 消费者价格指数 — 发布文档、新闻稿表格、参考表格与新闻稿图表包。",
+    );
   });
 
   it("applies numeric patterns", () => {
