@@ -1,3 +1,4 @@
+import { appDescriptions, appNames } from "./apps";
 import { bulk } from "./bulk";
 import { catalogCategories, catalogLabels } from "./catalog";
 import { core } from "./core";
@@ -23,6 +24,8 @@ export const zh: Record<string, string> = {
   ...catalogLabels,
   ...catalogCategories,
   ...widgetNames,
+  ...appNames,
+  ...appDescriptions,
 };
 
 /**
