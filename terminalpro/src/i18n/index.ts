@@ -116,8 +116,9 @@ export function translateRaw(raw: string): string | null {
   if (currentLocale !== "zh") return null;
   const text = raw.trim();
   // Upper bound only guards against whole-page garbage (e.g. JSON dumps);
-  // catalog descriptions legitimately run several hundred characters.
-  if (!text || text.length > 500) return null;
+  // catalog descriptions legitimately run several hundred characters, and the
+  // longest dataset document (Fama-French "US Portfolio returns") is ~4.3k.
+  if (!text || text.length > 4500) return null;
   const hit = lookup(text);
   if (hit !== undefined) return hit;
   for (const rule of zhPatterns) {

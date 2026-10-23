@@ -6,6 +6,7 @@ import {
   t,
   translateRaw,
 } from "~/i18n";
+import { widgetDescriptions } from "~/i18n/locales/zh/widgetDescriptions";
 
 describe("i18n", () => {
   beforeEach(() => {
@@ -49,15 +50,22 @@ describe("i18n", () => {
     expect(translateRaw("  Cancel  ")).toBe("取消");
     expect(translateRaw("Cancel all orders")).toBeNull();
     expect(translateRaw(`a${"x".repeat(600)}`)).toBeNull();
+    expect(translateRaw(`a${"x".repeat(4600)}`)).toBeNull();
   });
 
-  it("translates long catalog descriptions (up to 500 chars)", () => {
+  it("translates long catalog descriptions (up to 4.5k chars)", () => {
     setLocale("zh", { reload: false });
     const desc =
       "BLS Consumer Price Index — release documents, news-release tables, reference tables, and the news-release chart package.";
     expect(translateRaw(desc)).toBe(
       "BLS 消费者价格指数 — 发布文档、新闻稿表格、参考表格与新闻稿图表包。",
     );
+    // Longest dataset document in the catalogue: Fama-French "US Portfolio returns".
+    const longKey = Object.keys(widgetDescriptions).find((key) => key.length > 4000);
+    expect(longKey).toBeDefined();
+    const longZh = translateRaw(longKey as string);
+    expect(longZh).toBeTruthy();
+    expect(longZh?.startsWith("美国组合收益。")).toBe(true);
   });
 
   it("applies numeric patterns", () => {

@@ -5,6 +5,7 @@ import { core } from "./core";
 import { pages } from "./pages";
 import { patterns } from "./patterns";
 import { toasts } from "./toasts";
+import { widgetDescriptions } from "./widgetDescriptions";
 import { widgetNames } from "./widgetNames";
 import { widgets } from "./widgets";
 
@@ -24,6 +25,7 @@ export const zh: Record<string, string> = {
   ...catalogLabels,
   ...catalogCategories,
   ...widgetNames,
+  ...widgetDescriptions,
   ...appNames,
   ...appDescriptions,
 };
