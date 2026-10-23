@@ -1,14 +1,18 @@
 import { bulk } from "./bulk";
+import { catalogCategories, catalogLabels } from "./catalog";
 import { core } from "./core";
 import { pages } from "./pages";
 import { patterns } from "./patterns";
 import { toasts } from "./toasts";
+import { widgetNames } from "./widgetNames";
 import { widgets } from "./widgets";
 
 /**
  * Flat dictionary keyed by the English source string.
  * Later spreads intentionally do not override earlier ones for shared keys —
  * keep one canonical translation per English string across all files.
+ * Catalog entries (widget names / categories / parameter labels) go last so
+ * a hand-curated translation in an earlier file always wins.
  */
 export const zh: Record<string, string> = {
   ...core,
@@ -16,6 +20,9 @@ export const zh: Record<string, string> = {
   ...toasts,
   ...bulk,
   ...widgets,
+  ...catalogLabels,
+  ...catalogCategories,
+  ...widgetNames,
 };
 
 /**
