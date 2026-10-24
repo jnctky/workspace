@@ -107,6 +107,10 @@ class Settings:
     )
 
     # --- optional capabilities (honest defaults) ---
+    # dashboard_search: let "@" mention ANY widget from the whole catalog
+    # (~1000 entries). Off by default — with it off, "@" only offers widgets
+    # actually on the current dashboard, which keeps the list short and usable.
+    feature_dashboard_search: bool = _env_bool("FEATURE_DASHBOARD_SEARCH", False)
     feature_global_search: bool = _env_bool("FEATURE_GLOBAL_SEARCH", False)
     feature_generative_ui: bool = _env_bool("FEATURE_GENERATIVE_UI", False)
     feature_mcp_tools: bool = _env_bool("FEATURE_MCP_TOOLS", False)

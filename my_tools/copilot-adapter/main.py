@@ -252,8 +252,11 @@ def _manifest() -> dict[str, Any]:
         "streaming": True,
         # Lets the user push dashboard widgets into the conversation context.
         "widget-dashboard-select": True,
-        "widget-dashboard-search": True,
     }
+    if settings.feature_dashboard_search:
+        # Off by default: enabling this makes "@" offer the entire widget
+        # catalog (~1000 entries), which drowns out dashboard widgets.
+        features["widget-dashboard-search"] = True
     if settings.feature_global_search:
         features["widget-global-search"] = True
     if settings.feature_generative_ui:
@@ -265,7 +268,12 @@ def _manifest() -> dict[str, Any]:
         settings.agent_id: {
             "id": settings.agent_id,
             "name": settings.agent_name,
-            "description": settings.agent_description,
+            "description": (
+                f"{settings.agent_description} "
+                "⚙️ 本 agent 的上游 BaseURL / API Key / 模型保存在本机文件 "
+                "my_tools/copilot-adapter/.env（OPENAI_BASE_URL / OPENAI_API_KEY / "
+                "OPENAI_MODEL），编辑后重启 adapter 生效。"
+            ),
             # Relative path: Workspace resolves it against the URL the user
             # typed, so LAN access works without hard-coding a host.
             "endpoints": {"query": "v1/query"},
