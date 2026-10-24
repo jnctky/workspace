@@ -17,6 +17,9 @@ export const core: Record<string, string> = {
   "Update": "更新",
   "Open": "打开",
   "Run": "运行",
+  "Start": "启动",
+  "Stop": "停止",
+  "Restart": "重启",
   "Create": "创建",
   "Search": "搜索",
   "Menu": "菜单",
@@ -54,6 +57,16 @@ export const core: Record<string, string> = {
   "OK": "好",
 
   // --- states --------------------------------------------------------------
+  "Running": "运行中",
+  "Working…": "操作中…",
+  "Stopped": "已停止",
+  "Unknown": "未知",
+  "Service actions": "服务操作",
+  "OpenBB Data API": "OpenBB 数据服务",
+  "Copilot Adapter": "Copilot 适配器",
+  "Backend API": "后端服务",
+  "Backend API (8000) is not running — start it from the Service Hub or run start_workspace.sh":
+    "后端服务 (8000) 未运行 — 请在服务中心启动，或运行 start_workspace.sh",
   "Loading...": "加载中…",
   "Loading video...": "正在加载视频…",
   "No results found": "未找到结果",

@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import Feedback from "~/components/General/Feedback";
 import Icon from "~/components/Icon";
 import { LETS_TALK_FORM_URL, VERSION } from "~/lib/constants";
-import { getShowDemoRequestButton } from "~/lib/onPremFeatureFlags";
 import { getConfig } from "~/lib/runtimeConfig";
 import { useShallowAuthStore } from "~/lib/state/auth";
 import { useShallowFeatureFlagsStore } from "~/lib/state/featureFlags";
@@ -11,9 +10,9 @@ import { useShallowSidebarStore } from "~/lib/state/sidebar";
 import { useShallowThemeStore } from "~/lib/state/theme";
 import { Button } from "../ds/atoms/Button";
 import { BaseDialog } from "../ds/dialogs/BaseDialog";
-import { cn } from "../ds/utils";
 import Tooltip from "../Tooltip";
 import ChangelogDialog from "./ChangelogDialog";
+import { SidebarServicesStatus } from "./LocalServiceStatus";
 
 interface Props {
   header?: ReactNode;
@@ -24,8 +23,6 @@ interface Props {
 const uiShowChangelogFF = getConfig().ui.showChangelog;
 const uiShowInviteButtonFF = getConfig().ui.showInviteButton;
 const { leftSidebarLogo, leftSidebarLogoDark, name: wlName } = getConfig().whiteLabel;
-
-const showDemoRequestButton = getShowDemoRequestButton();
 
 const isWhitelabel =
   (leftSidebarLogo && leftSidebarLogo !== "") ||
@@ -203,30 +200,10 @@ function DemoDialog() {
 function SidebarFooter() {
   const expanded = useShallowSidebarStore((state) => state.effectiveExpanded);
 
-  const setBookingOpen = useShallowThemeStore((s) => s.setBookingOpen);
   const updateShowChangelog = useShallowAuthStore((s) => s.updateShowChangelog);
 
-  const showUpgrade = useShallowFeatureFlagsStore(
-    (state) => state.featureFlags?.tier !== "pro" || state.featureFlags?.is_trial,
-  );
-
   return (
-    <>
-      <div
-        className={cn(
-          "relative overflow-auto rounded bg-surface-card p-2 text-2xs flex justify-between items-center w-full gap-2 mb-2.5 @max-[185px]:hidden",
-          {
-            hidden: !expanded || (expanded && !showUpgrade) || !showDemoRequestButton,
-          },
-        )}
-      >
-        <p className="body-xs-bold text-general-label flex items-center gap-1 whitespace-nowrap">
-          Need more?
-        </p>
-        <Button variant="primary" size="xs" onClick={() => setBookingOpen(true)}>
-          Let's talk
-        </Button>
-      </div>
+    <div className="flex w-full items-center justify-between gap-2 px-1 pb-2.5">
       <div className="flex flex-col items-center gap-0.5">
         <Tooltip
           message="Click here to check changelog"
@@ -245,7 +222,8 @@ function SidebarFooter() {
           </p>
         )}
       </div>
-    </>
+      <SidebarServicesStatus />
+    </div>
   );
 }
 
