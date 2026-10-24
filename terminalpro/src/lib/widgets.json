@@ -497,7 +497,7 @@
       "h": 13
     },
     "source": ["tradingview"],
-    "disableRetrievalForCopilot": true
+    "disableRetrievalForCopilot": false
   },
   "tv_crypto_coins_heatmap": {
     "name": "tv_Crypto Coins Heatmap",
