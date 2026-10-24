@@ -65,8 +65,11 @@ SERVICES = {
                 "log": ADAPTER_LOG, "health": ADAPTER_HEALTH, "label": "Copilot adapter"},
 }
 
-# DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
-_CREATION_FLAGS = 0x00000008 | 0x00000200 | 0x08000000
+# CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+# 注意：不要加 DETACHED_PROCESS(0x8)——它与 CREATE_NO_WINDOW 互斥，组合后等于
+# 「完全无控制台」，服务内部再用 multiprocessing/subprocess 拉起的子进程会
+# 自己新建可见控制台（任务栏弹窗）。用 CREATE_NO_WINDOW 让子孙进程继承隐藏控制台。
+_CREATION_FLAGS = 0x00000200 | 0x08000000
 # CREATE_BREAKAWAY_FROM_JOB — let the child escape a job object so it survives
 # the parent session being recycled (mirrors the service-hub agent behaviour).
 _BREAKAWAY = 0x01000000

@@ -39,8 +39,10 @@ def main() -> None:
     fh.write(("\n===== restart %s =====\n" % time.strftime("%Y-%m-%d %H:%M:%S")).encode())
     env = dict(os.environ)
     env["NO_PROXY"] = "127.0.0.1,localhost," + env.get("NO_PROXY", "")
-    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW | BREAKAWAY
-    flags = 0x00000008 | 0x00000200 | 0x08000000 | 0x01000000
+    # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW | BREAKAWAY
+    # 不用 DETACHED_PROCESS(0x8)：与 CREATE_NO_WINDOW 互斥，会让 uvicorn 内部
+    # 再 spawn 的子进程自己弹可见控制台窗口。
+    flags = 0x00000200 | 0x08000000 | 0x01000000
     try:
         subprocess.Popen(CMD, cwd=CWD, stdout=fh, stderr=subprocess.STDOUT,
                          env=env, creationflags=flags)
