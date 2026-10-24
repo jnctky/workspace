@@ -37,6 +37,7 @@ from routers import (
     admin,
     auth,
     entity,
+    local_services,
     marketplace,
     marketplace_developer,
     metrics as metrics_router,
@@ -78,6 +79,9 @@ async def lifespan(app: FastAPI):
     await helpers.init_trial_mappings()
     await start_background_tasks()
     await init_audit_listeners()
+    # Auto-start the local OpenBB Platform API (6900) and Copilot adapter
+    # (7777) if they are not running. Non-blocking, best effort.
+    local_services.autostart_services()
     if config.settings.PROMETHEUS:
         start_runtime_metrics()
     yield
@@ -122,6 +126,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 
 routers = [
     auth.router,
+    local_services.router,
     metrics_router.router,
     sdk.router,
     index.router,

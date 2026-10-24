@@ -848,6 +848,8 @@ class GeneralSettings(BaseModel):
     CLEAR_UNCONFIRMED_FILES_DATE: str = "2024-10-07"
     OPENBB_AUTH_TOKEN: str | None = None
     BACKEND_CORS_ORIGINS: list[str] | str = [
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
         "http://10.5.2.231:5173",
         "https://pro.openbb.co",
         "https://pro.openbb.dev",
