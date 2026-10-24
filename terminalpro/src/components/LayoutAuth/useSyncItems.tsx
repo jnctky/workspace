@@ -2,7 +2,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { apiClient } from "~/api/api";
-import { getApiSources } from "~/api/auth.api";
+import {
+  getApiSources,
+  getExternalCopilotHolders,
+} from "~/api/auth.api";
 import { saveDashboards } from "~/api/dashboard.api";
 import { useCreateRef } from "~/hooks/useRefHooks";
 import { useShallowAppStore } from "~/lib/state/app";
@@ -43,6 +46,9 @@ export default function useSyncItems() {
     checkForChanges: state.checkForChanges,
   }));
   const updateChats = useShallowCopilotStore((state) => state.updateChats);
+  const setExternalCopilotHolders = useShallowCopilotStore(
+    (state) => state.setExternalCopilotHolders,
+  );
   const { updateApiSources, updateBackendConnector } = useShallowBackendConnectorStore(
     (state) => ({
       updateApiSources: state.updateApiSources,
@@ -99,6 +105,18 @@ export default function useSyncItems() {
         );
 
         updateChats(data.copilot_chats, { questionsHistory: data.questions_history });
+
+        // Re-fetch external copilot agent definitions (agents.json) so that
+        // server-side changes (features, models, descriptions) take effect on
+        // page load instead of only on the next full login. Falls back to the
+        // cached snapshot per-holder when an agent URL is unreachable.
+        getExternalCopilotHolders()
+          .then((holders) => {
+            if (holders.length > 0) setExternalCopilotHolders(holders);
+          })
+          .catch((error) =>
+            console.warn("Failed to refresh copilot agents:", error),
+          );
         updateRemoteItems(data.owned);
         updateOnlySharedItems({
           shared: data.shared,

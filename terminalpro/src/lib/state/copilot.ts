@@ -1257,9 +1257,13 @@ export const useCopilotStore = createWithEqualityFn<CopilotState>()(
           const selectionStillValid =
             selectedCopilot?.id === "openbb-copilot" ||
             availableCopilots.some((c) => c.id === selectedCopilot?.id);
-          const nextSelectedCopilot = selectionStillValid
-            ? selectedCopilot
-            : (availableCopilots[0] ?? null);
+          // When the selection is an external agent that still exists, swap in
+          // the freshly fetched object so features/models stay in sync with
+          // the agent definition instead of keeping a stale snapshot.
+          const nextSelectedCopilot = !selectionStillValid
+            ? (availableCopilots[0] ?? null)
+            : (availableCopilots.find((c) => c.id === selectedCopilot?.id) ??
+              selectedCopilot);
 
           set({
             externalCopilotHolders: uniqueCopilots,
